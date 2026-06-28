@@ -187,12 +187,16 @@ function Dashboard() {
     if (signal.regime === "wait" || !signal.direction) return;
 
     // Adaptive policy from the continuous-learning loop.
+    // Only enforce after the bucket has enough samples (warmup); before
+    // that, use the strategy's own confidence with a low base floor.
     const policy = learningEnabled
       ? getPolicy(sym.code, signal.regime, signal.direction)
       : null;
-    const minConfidence = policy?.minConfidence ?? 0.6;
-    if (policy?.disabled) return;
+    const hasWarmup = (policy?.trades ?? 0) >= 15;
+    const minConfidence = hasWarmup ? (policy?.minConfidence ?? 0.5) : 0.5;
+    if (hasWarmup && policy?.disabled) return;
     if (signal.confidence < minConfidence) return;
+
 
     // Daily loss guard
     const today = new Date().toDateString();

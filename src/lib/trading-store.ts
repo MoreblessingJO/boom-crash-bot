@@ -59,9 +59,15 @@ const DEFAULT_BUCKET: BucketStats = {
   sumR: 0,
   expectancyR: 0,
   lastUpdated: 0,
-  minConfidence: 0.6,
+  minConfidence: 0.5,
   disabled: false,
 };
+
+// Warmup: don't let the learner gate entries until the bucket has
+// enough samples. Below this, use the base floor and never disable.
+const WARMUP_TRADES = 15;
+const DISABLE_TRADES = 40;
+const DISABLE_EXPECTANCY = -0.4;
 
 // Online learner — runs on every closed position. Updates the bucket's
 // EWMA expectancy and re-derives the policy (confidence threshold + on/off).
@@ -75,14 +81,15 @@ function updateBucket(prev: BucketStats | undefined, realizedR: number): BucketS
   const expectancyR =
     b.trades === 0 ? realizedR : b.expectancyR * (1 - alpha) + realizedR * alpha;
 
-  // Policy derivation.
-  // Confidence floor: shift with expectancy. Negative → demand higher conf.
-  // Positive → relax slightly. Cap [0.5, 0.95].
-  let minConfidence = 0.6 - Math.tanh(expectancyR) * 0.15;
-  minConfidence = Math.max(0.5, Math.min(0.95, minConfidence));
+  // Confidence floor: only nudges after warmup, gentler swing, lower cap.
+  let minConfidence = 0.5;
+  if (trades >= WARMUP_TRADES) {
+    minConfidence = 0.55 - Math.tanh(expectancyR) * 0.1;
+    minConfidence = Math.max(0.45, Math.min(0.8, minConfidence));
+  }
 
-  // Disable bucket only after enough samples and clearly negative edge.
-  const disabled = trades >= 20 && expectancyR < -0.25;
+  const disabled = trades >= DISABLE_TRADES && expectancyR < DISABLE_EXPECTANCY;
+
 
   return {
     trades,
