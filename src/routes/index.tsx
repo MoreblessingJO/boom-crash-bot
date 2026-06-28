@@ -134,20 +134,48 @@ function Dashboard() {
     pnl: 0,
   });
 
-  // Manage exits (TP/SL) on every tick batch
+  // Manage exits on every tick: TP / SL / pre-spike / time stop.
   useEffect(() => {
     const open = positions.filter((p) => p.status === "open");
     for (const p of open) {
-      const last = states[p.symbol]?.ticks.at(-1);
+      const symDef = getSymbol(p.symbol);
+      const st = states[p.symbol];
+      const last = st?.ticks.at(-1);
       if (!last) continue;
-      const pipSize = 0.01; // synthetic indices approx pip
+
+      tickPosition(p.id);
+
       const dir = p.direction === "BUY" ? 1 : -1;
-      const move = (last.quote - p.entryPrice) * dir;
-      if (move >= takeProfitPips * pipSize || move <= -stopLossPips * pipSize) {
-        closePosition(p.id, last.quote, last.epoch);
+
+      // 1) TP / SL based on per-position price thresholds.
+      if (dir === 1 ? last.quote >= p.tpPrice : last.quote <= p.tpPrice) {
+        closePosition(p.id, last.quote, last.epoch, "TP");
+        continue;
+      }
+      if (dir === 1 ? last.quote <= p.slPrice : last.quote >= p.slPrice) {
+        closePosition(p.id, last.quote, last.epoch, "SL");
+        continue;
+      }
+
+      // 2) Pre-spike exit — close BEFORE the spike rather than after it.
+      // Boom spikes UP (bad for SELL); Crash spikes DOWN (bad for BUY).
+      const againstSpike =
+        (symDef.kind === "boom" && p.direction === "SELL") ||
+        (symDef.kind === "crash" && p.direction === "BUY");
+      if (
+        againstSpike &&
+        st.ticksSinceSpike >= symDef.avgSpikeTicks * preSpikeExitRatio
+      ) {
+        closePosition(p.id, last.quote, last.epoch, "pre-spike");
+        continue;
+      }
+
+      // 3) Time stop.
+      if (p.ticksHeld >= p.maxHoldTicks) {
+        closePosition(p.id, last.quote, last.epoch, "time");
       }
     }
-  }, [states, positions, takeProfitPips, stopLossPips, closePosition]);
+  }, [states, positions, preSpikeExitRatio, closePosition, tickPosition]);
 
   // Entry engine — opens at most one position per symbol
   useEffect(() => {
