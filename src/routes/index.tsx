@@ -14,6 +14,7 @@ import { TickChart } from "@/components/TickChart";
 import { PositionsPanel } from "@/components/PositionsPanel";
 import { ControlPanel } from "@/components/ControlPanel";
 import { SymbolGrid } from "@/components/SymbolGrid";
+import { LearningPanel } from "@/components/LearningPanel";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -372,8 +373,16 @@ function Dashboard() {
           </div>
         </div>
 
-        <aside className="rounded-xl border border-border bg-card p-4">
-          <ControlPanel status={status} />
+        <aside className="space-y-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <ControlPanel status={status} />
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Learning loop
+            </h3>
+            <LearningPanel />
+          </div>
         </aside>
       </div>
 
