@@ -287,6 +287,8 @@ function Dashboard() {
     addPosition,
     pushSignal,
     apiToken,
+    learningEnabled,
+    getPolicy,
   ]);
 
   // Spike epoch markers for selected symbol chart
