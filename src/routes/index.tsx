@@ -49,13 +49,16 @@ function Dashboard() {
     autoTrade,
     mode,
     stake,
-    takeProfitPips,
-    stopLossPips,
+    takeProfitR,
+    stopLossR,
+    maxHoldRatio,
+    preSpikeExitRatio,
     maxDailyLoss,
     killSwitch,
     positions,
     addPosition,
     closePosition,
+    tickPosition,
     pushSignal,
     apiToken,
   } = useTrading();
@@ -131,20 +134,48 @@ function Dashboard() {
     pnl: 0,
   });
 
-  // Manage exits (TP/SL) on every tick batch
+  // Manage exits on every tick: TP / SL / pre-spike / time stop.
   useEffect(() => {
     const open = positions.filter((p) => p.status === "open");
     for (const p of open) {
-      const last = states[p.symbol]?.ticks.at(-1);
+      const symDef = getSymbol(p.symbol);
+      const st = states[p.symbol];
+      const last = st?.ticks.at(-1);
       if (!last) continue;
-      const pipSize = 0.01; // synthetic indices approx pip
+
+      tickPosition(p.id);
+
       const dir = p.direction === "BUY" ? 1 : -1;
-      const move = (last.quote - p.entryPrice) * dir;
-      if (move >= takeProfitPips * pipSize || move <= -stopLossPips * pipSize) {
-        closePosition(p.id, last.quote, last.epoch);
+
+      // 1) TP / SL based on per-position price thresholds.
+      if (dir === 1 ? last.quote >= p.tpPrice : last.quote <= p.tpPrice) {
+        closePosition(p.id, last.quote, last.epoch, "TP");
+        continue;
+      }
+      if (dir === 1 ? last.quote <= p.slPrice : last.quote >= p.slPrice) {
+        closePosition(p.id, last.quote, last.epoch, "SL");
+        continue;
+      }
+
+      // 2) Pre-spike exit — close BEFORE the spike rather than after it.
+      // Boom spikes UP (bad for SELL); Crash spikes DOWN (bad for BUY).
+      const againstSpike =
+        (symDef.kind === "boom" && p.direction === "SELL") ||
+        (symDef.kind === "crash" && p.direction === "BUY");
+      if (
+        againstSpike &&
+        st.ticksSinceSpike >= symDef.avgSpikeTicks * preSpikeExitRatio
+      ) {
+        closePosition(p.id, last.quote, last.epoch, "pre-spike");
+        continue;
+      }
+
+      // 3) Time stop.
+      if (p.ticksHeld >= p.maxHoldTicks) {
+        closePosition(p.id, last.quote, last.epoch, "time");
       }
     }
-  }, [states, positions, takeProfitPips, stopLossPips, closePosition]);
+  }, [states, positions, preSpikeExitRatio, closePosition, tickPosition]);
 
   // Entry engine — opens at most one position per symbol
   useEffect(() => {
@@ -174,9 +205,32 @@ function Dashboard() {
 
     const last = symState.ticks.at(-1);
     if (!last) return;
+
+    // Late-entry guard for counter-spike trades: if we're already past
+    // 90% of the mean spike interval, the spike is imminent — skip.
+    const againstSpike =
+      (sym.kind === "boom" && signal.direction === "SELL") ||
+      (sym.kind === "crash" && signal.direction === "BUY");
+    if (
+      againstSpike &&
+      symState.ticksSinceSpike >= sym.avgSpikeTicks * 0.9
+    ) {
+      return;
+    }
+
     const sigKey = `${sym.code}:${signal.direction}:${last.epoch}`;
     if (lastSignalRef.current === sigKey) return;
     lastSignalRef.current = sigKey;
+
+    // R-unit = current median absolute tick change. Fallback to a small
+    // fraction of price if we don't yet have a stable estimate.
+    const rUnit = symState.medianAbsChange > 0
+      ? symState.medianAbsChange
+      : Math.max(last.quote * 0.00005, 0.01);
+    const dir = signal.direction === "BUY" ? 1 : -1;
+    const tpPrice = last.quote + dir * rUnit * takeProfitR;
+    const slPrice = last.quote - dir * rUnit * stopLossR;
+    const maxHoldTicks = Math.round(sym.avgSpikeTicks * maxHoldRatio);
 
     const pos: Position = {
       id: `${sym.code}-${last.epoch}-${Math.random().toString(36).slice(2, 7)}`,
@@ -188,6 +242,11 @@ function Dashboard() {
       status: "open",
       mode,
       reason: signal.reason,
+      rUnit,
+      tpPrice,
+      slPrice,
+      maxHoldTicks,
+      ticksHeld: 0,
     };
     addPosition(pos);
     pushSignal({
@@ -207,9 +266,12 @@ function Dashboard() {
     autoTrade,
     killSwitch,
     mode,
-    sym.code,
+    sym,
     symState,
     stake,
+    takeProfitR,
+    stopLossR,
+    maxHoldRatio,
     positions,
     maxDailyLoss,
     addPosition,
