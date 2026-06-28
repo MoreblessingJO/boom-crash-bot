@@ -16,7 +16,9 @@ export function ControlPanel({ status }: { status: "connecting" | "open" | "clos
   const {
     mode, setMode, apiToken, setApiToken,
     autoTrade, setAutoTrade, stake, setStake,
-    takeProfitPips, stopLossPips, setRisk,
+    takeProfitR, stopLossR, setRisk,
+    maxHoldRatio, setMaxHoldRatio,
+    preSpikeExitRatio, setPreSpikeExitRatio,
     maxDailyLoss, setMaxDailyLoss,
     killSwitch, setKill, resetPaper, paperBalance,
   } = useTrading();
