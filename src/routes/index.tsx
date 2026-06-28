@@ -184,7 +184,14 @@ function Dashboard() {
     if (!autoTrade || killSwitch) return;
     if (mode === "signals") return; // signals-only: never auto-open
     if (signal.regime === "wait" || !signal.direction) return;
-    if (signal.confidence < 0.6) return;
+
+    // Adaptive policy from the continuous-learning loop.
+    const policy = learningEnabled
+      ? getPolicy(sym.code, signal.regime, signal.direction)
+      : null;
+    const minConfidence = policy?.minConfidence ?? 0.6;
+    if (policy?.disabled) return;
+    if (signal.confidence < minConfidence) return;
 
     // Daily loss guard
     const today = new Date().toDateString();
@@ -244,6 +251,7 @@ function Dashboard() {
       status: "open",
       mode,
       reason: signal.reason,
+      regime: signal.regime,
       rUnit,
       tpPrice,
       slPrice,
