@@ -61,6 +61,8 @@ function Dashboard() {
     tickPosition,
     pushSignal,
     apiToken,
+    learningEnabled,
+    getPolicy,
   } = useTrading();
 
   // Connect once
