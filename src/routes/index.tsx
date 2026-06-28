@@ -14,6 +14,7 @@ import { TickChart } from "@/components/TickChart";
 import { PositionsPanel } from "@/components/PositionsPanel";
 import { ControlPanel } from "@/components/ControlPanel";
 import { SymbolGrid } from "@/components/SymbolGrid";
+import { LearningPanel } from "@/components/LearningPanel";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -61,6 +62,8 @@ function Dashboard() {
     tickPosition,
     pushSignal,
     apiToken,
+    learningEnabled,
+    getPolicy,
   } = useTrading();
 
   // Connect once
@@ -182,7 +185,14 @@ function Dashboard() {
     if (!autoTrade || killSwitch) return;
     if (mode === "signals") return; // signals-only: never auto-open
     if (signal.regime === "wait" || !signal.direction) return;
-    if (signal.confidence < 0.6) return;
+
+    // Adaptive policy from the continuous-learning loop.
+    const policy = learningEnabled
+      ? getPolicy(sym.code, signal.regime, signal.direction)
+      : null;
+    const minConfidence = policy?.minConfidence ?? 0.6;
+    if (policy?.disabled) return;
+    if (signal.confidence < minConfidence) return;
 
     // Daily loss guard
     const today = new Date().toDateString();
@@ -242,6 +252,7 @@ function Dashboard() {
       status: "open",
       mode,
       reason: signal.reason,
+      regime: signal.regime,
       rUnit,
       tpPrice,
       slPrice,
@@ -277,6 +288,8 @@ function Dashboard() {
     addPosition,
     pushSignal,
     apiToken,
+    learningEnabled,
+    getPolicy,
   ]);
 
   // Spike epoch markers for selected symbol chart
@@ -360,8 +373,16 @@ function Dashboard() {
           </div>
         </div>
 
-        <aside className="rounded-xl border border-border bg-card p-4">
-          <ControlPanel status={status} />
+        <aside className="space-y-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <ControlPanel status={status} />
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Learning loop
+            </h3>
+            <LearningPanel />
+          </div>
         </aside>
       </div>
 
