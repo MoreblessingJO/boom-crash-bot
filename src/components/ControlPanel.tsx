@@ -150,26 +150,56 @@ export function ControlPanel({ status }: { status: "connecting" | "open" | "clos
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Take profit (pips)</Label>
+            <Label className="text-xs text-muted-foreground">Take profit (R)</Label>
             <Input
               type="number"
-              min={1}
-              value={takeProfitPips}
-              onChange={(e) => setRisk(Number(e.target.value) || 5, stopLossPips)}
+              min={0.5}
+              step={0.5}
+              value={takeProfitR}
+              onChange={(e) => setRisk(Number(e.target.value) || 3, stopLossR)}
               className="text-tabular"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Stop loss (pips)</Label>
+            <Label className="text-xs text-muted-foreground">Stop loss (R)</Label>
             <Input
               type="number"
-              min={1}
-              value={stopLossPips}
-              onChange={(e) => setRisk(takeProfitPips, Number(e.target.value) || 3)}
+              min={0.5}
+              step={0.5}
+              value={stopLossR}
+              onChange={(e) => setRisk(takeProfitR, Number(e.target.value) || 1)}
+              className="text-tabular"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Pre-spike exit (× interval)</Label>
+            <Input
+              type="number"
+              min={0.3}
+              max={1}
+              step={0.05}
+              value={preSpikeExitRatio}
+              onChange={(e) => setPreSpikeExitRatio(Number(e.target.value) || 0.8)}
+              className="text-tabular"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Max hold (× interval)</Label>
+            <Input
+              type="number"
+              min={0.2}
+              step={0.1}
+              value={maxHoldRatio}
+              onChange={(e) => setMaxHoldRatio(Number(e.target.value) || 1.2)}
               className="text-tabular"
             />
           </div>
         </div>
+        <p className="text-[10px] text-muted-foreground">
+          Risk is sized in <span className="text-primary">R-multiples</span> of each market's
+          median tick move (captured at entry), so SL/TP scale with volatility.
+          Default 3:1 RR means a single loss costs only 1/3 of a single win.
+        </p>
       </div>
 
       <div className="flex gap-2 border-t border-border pt-3">
