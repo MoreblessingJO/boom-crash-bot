@@ -63,6 +63,27 @@ export function SymbolGrid({ selected, onSelect, prices, changes, ticksSinceSpik
               <span className={ch >= 0 ? "text-boom" : "text-crash"}>
                 {ch >= 0 ? "▲" : "▼"} {Math.abs(ch).toFixed(2)}
               </span>
+              {(() => {
+                const st = stats[s.code];
+                if (!st || st.trades === 0) {
+                  return <span className="text-muted-foreground">—</span>;
+                }
+                const wr = (st.wins / st.trades) * 100;
+                return (
+                  <span
+                    className={cn(
+                      "text-tabular font-semibold",
+                      wr >= 60 ? "text-boom" : wr >= 45 ? "text-warn" : "text-crash",
+                    )}
+                    title={`${st.wins}W / ${st.trades - st.wins}L`}
+                  >
+                    {wr.toFixed(0)}% ({st.trades})
+                  </span>
+                );
+              })()}
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[10px]">
+              <span className="text-muted-foreground">since spike</span>
               <span
                 className={cn(
                   "text-muted-foreground",
