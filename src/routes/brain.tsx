@@ -421,7 +421,7 @@ function BrainMonitor() {
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {byRegime.map((r) => {
-              const wr = r.trades ? (r.wins / r.trades) * 100 : 0;
+              const wr = wrPct(r.wins, r.losses);
               return (
                 <div
                   key={r.key}
