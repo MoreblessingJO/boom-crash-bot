@@ -495,7 +495,7 @@ function BrainMonitor() {
               <tbody>
                 {byRegimeDir.map((r) => {
                   const [regime, dir] = r.key.split("·");
-                  const wr = r.trades ? (r.wins / r.trades) * 100 : 0;
+                  const wr = wrPct(r.wins, r.losses);
                   return (
                     <tr key={r.key} className="border-t border-border/50">
                       <td className="px-3 py-1.5">
