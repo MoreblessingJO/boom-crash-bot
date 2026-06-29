@@ -45,7 +45,45 @@ const REGIME_DESC: Record<string, string> = {
 };
 
 function BrainMonitor() {
-  const { learning, positions, resetLearning } = useTrading();
+  const { learning, positions, resetLearning, lastPrices } = useTrading();
+
+  // Live pulse — re-render every second so "time since last tick" and
+  // unrealized R reflect the freshest market data even between ticks.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const i = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(i);
+  }, []);
+
+  const newestEpoch = useMemo(
+    () => Object.values(lastPrices).reduce((m, p) => Math.max(m, p.epoch), 0),
+    [lastPrices],
+  );
+  const secondsSinceTick = newestEpoch ? Math.max(0, Math.floor(now / 1000 - newestEpoch)) : null;
+  const isLive = secondsSinceTick !== null && secondsSinceTick < 5;
+
+  // Live open-position risk
+  const openRisk = useMemo(() => {
+    const open = positions.filter((p) => p.status === "open");
+    let totalRiskR = 0;
+    let totalUnrealizedR = 0;
+    let totalUnrealizedPnl = 0;
+    const rows = open.map((p) => {
+      const lp = lastPrices[p.symbol];
+      const dir = p.direction === "BUY" ? 1 : -1;
+      const last = lp?.quote ?? p.entryPrice;
+      const unrealizedR = p.rUnit > 0 ? ((last - p.entryPrice) * dir) / p.rUnit : 0;
+      const unrealizedPnl = (last - p.entryPrice) * dir * p.stake;
+      const distToTpR = p.rUnit > 0 ? ((p.tpPrice - last) * dir) / p.rUnit : 0;
+      const distToSlR = p.rUnit > 0 ? ((last - p.slPrice) * dir) / p.rUnit : 0;
+      const holdPct = p.maxHoldTicks > 0 ? (p.ticksHeld / p.maxHoldTicks) * 100 : 0;
+      totalRiskR += 1; // each open trade risks 1R
+      totalUnrealizedR += unrealizedR;
+      totalUnrealizedPnl += unrealizedPnl;
+      return { p, last, unrealizedR, unrealizedPnl, distToTpR, distToSlR, holdPct };
+    });
+    return { rows, totalRiskR, totalUnrealizedR, totalUnrealizedPnl };
+  }, [positions, lastPrices]);
 
   // Per-regime aggregate from learning buckets
   const byRegime = useMemo(() => {
