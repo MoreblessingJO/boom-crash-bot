@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTrading } from "@/lib/trading-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,45 @@ const REGIME_DESC: Record<string, string> = {
 };
 
 function BrainMonitor() {
-  const { learning, positions, resetLearning } = useTrading();
+  const { learning, positions, resetLearning, lastPrices } = useTrading();
+
+  // Live pulse — re-render every second so "time since last tick" and
+  // unrealized R reflect the freshest market data even between ticks.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const i = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(i);
+  }, []);
+
+  const newestEpoch = useMemo(
+    () => Object.values(lastPrices).reduce((m, p) => Math.max(m, p.epoch), 0),
+    [lastPrices],
+  );
+  const secondsSinceTick = newestEpoch ? Math.max(0, Math.floor(now / 1000 - newestEpoch)) : null;
+  const isLive = secondsSinceTick !== null && secondsSinceTick < 5;
+
+  // Live open-position risk
+  const openRisk = useMemo(() => {
+    const open = positions.filter((p) => p.status === "open");
+    let totalRiskR = 0;
+    let totalUnrealizedR = 0;
+    let totalUnrealizedPnl = 0;
+    const rows = open.map((p) => {
+      const lp = lastPrices[p.symbol];
+      const dir = p.direction === "BUY" ? 1 : -1;
+      const last = lp?.quote ?? p.entryPrice;
+      const unrealizedR = p.rUnit > 0 ? ((last - p.entryPrice) * dir) / p.rUnit : 0;
+      const unrealizedPnl = (last - p.entryPrice) * dir * p.stake;
+      const distToTpR = p.rUnit > 0 ? ((p.tpPrice - last) * dir) / p.rUnit : 0;
+      const distToSlR = p.rUnit > 0 ? ((last - p.slPrice) * dir) / p.rUnit : 0;
+      const holdPct = p.maxHoldTicks > 0 ? (p.ticksHeld / p.maxHoldTicks) * 100 : 0;
+      totalRiskR += 1; // each open trade risks 1R
+      totalUnrealizedR += unrealizedR;
+      totalUnrealizedPnl += unrealizedPnl;
+      return { p, last, unrealizedR, unrealizedPnl, distToTpR, distToSlR, holdPct };
+    });
+    return { rows, totalRiskR, totalUnrealizedR, totalUnrealizedPnl };
+  }, [positions, lastPrices]);
 
   // Per-regime aggregate from learning buckets
   const byRegime = useMemo(() => {
@@ -182,11 +220,32 @@ function BrainMonitor() {
               Brain <span className="text-primary">Monitor</span>
             </h1>
             <p className="text-xs text-muted-foreground">
-              Strategy & indicator performance — what's actually paying.
+              Live strategy, indicator & open-position risk.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider",
+              isLive
+                ? "border-boom/40 bg-boom/10 text-boom"
+                : "border-border bg-surface text-muted-foreground",
+            )}
+            title={
+              secondsSinceTick === null
+                ? "Open the dashboard to start the tick feed"
+                : `Last tick ${secondsSinceTick}s ago`
+            }
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isLive ? "bg-boom animate-pulse" : "bg-muted-foreground",
+              )}
+            />
+            {isLive ? "Live" : secondsSinceTick === null ? "Idle" : `${secondsSinceTick}s`}
+          </div>
           <Button variant="ghost" size="sm" onClick={resetLearning}>
             Reset learner
           </Button>
@@ -214,6 +273,112 @@ function BrainMonitor() {
           tone={totals.pnl > 0 ? "boom" : totals.pnl < 0 ? "crash" : "muted"}
         />
       </div>
+
+      {/* Live open-position risk */}
+      <Section
+        title={`Open position risk · live (${openRisk.rows.length})`}
+      >
+        {openRisk.rows.length === 0 ? (
+          <Empty>No open positions. Risk meter resumes when the agent enters a trade.</Empty>
+        ) : (
+          <>
+            <div className="mb-2 grid grid-cols-3 gap-2">
+              <MiniStat
+                label="Risk at work"
+                value={`${openRisk.totalRiskR.toFixed(1)}R`}
+              />
+              <MiniStat
+                label="Unrealized R"
+                value={openRisk.totalUnrealizedR.toFixed(2)}
+                tone={
+                  openRisk.totalUnrealizedR > 0
+                    ? "boom"
+                    : openRisk.totalUnrealizedR < 0
+                      ? "crash"
+                      : "muted"
+                }
+              />
+              <MiniStat
+                label="Unrealized PnL"
+                value={`${openRisk.totalUnrealizedPnl >= 0 ? "+" : ""}${openRisk.totalUnrealizedPnl.toFixed(2)}`}
+                tone={
+                  openRisk.totalUnrealizedPnl > 0
+                    ? "boom"
+                    : openRisk.totalUnrealizedPnl < 0
+                      ? "crash"
+                      : "muted"
+                }
+              />
+            </div>
+            <div className="overflow-hidden rounded-lg border border-border bg-surface">
+              <table className="w-full text-xs">
+                <thead className="bg-surface text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="px-3 py-2 font-medium">Symbol · Side</th>
+                    <th className="px-2 py-2 text-right font-medium">Last</th>
+                    <th className="px-2 py-2 text-right font-medium">uR</th>
+                    <th className="px-2 py-2 text-right font-medium">→TP</th>
+                    <th className="px-2 py-2 text-right font-medium">→SL</th>
+                    <th className="px-3 py-2 text-right font-medium">Held</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openRisk.rows.map((r) => (
+                    <tr key={r.p.id} className="border-t border-border/50">
+                      <td className="px-3 py-1.5">
+                        <span className="font-medium">{r.p.symbol}</span> ·{" "}
+                        <span className={r.p.direction === "BUY" ? "text-boom" : "text-crash"}>
+                          {r.p.direction}
+                        </span>
+                        <div className="text-[10px] text-muted-foreground">
+                          {REGIME_LABEL[r.p.regime] ?? r.p.regime}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-tabular">
+                        {r.last.toFixed(2)}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-2 py-1.5 text-right text-tabular font-semibold",
+                          r.unrealizedR > 0 ? "text-boom" : r.unrealizedR < 0 ? "text-crash" : "",
+                        )}
+                      >
+                        {r.unrealizedR >= 0 ? "+" : ""}
+                        {r.unrealizedR.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-tabular text-boom/80">
+                        {r.distToTpR.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-tabular text-crash/80">
+                        {r.distToSlR.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-tabular">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <div className="h-1 w-12 overflow-hidden rounded-full bg-border">
+                            <div
+                              className={cn(
+                                "h-full",
+                                r.holdPct > 80 ? "bg-crash" : r.holdPct > 50 ? "bg-yellow-500" : "bg-primary",
+                              )}
+                              style={{ width: `${Math.min(100, r.holdPct)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {r.p.ticksHeld}/{r.p.maxHoldTicks}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              uR = unrealized R · →TP / →SL = R-distance to target / stop. Updates on every tick from the dashboard feed.
+            </p>
+          </>
+        )}
+      </Section>
 
       {/* Winning strategy banner */}
       {winner && winner.trades >= 5 && (

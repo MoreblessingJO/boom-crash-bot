@@ -147,6 +147,11 @@ interface State {
   setLearningEnabled: (b: boolean) => void;
   resetLearning: () => void;
   getPolicy: (symbol: string, regime: Regime, direction: Direction) => BucketStats;
+
+  // Live market mirror — written by the dashboard tick loop so other
+  // routes (Brain monitor) can render live unrealized risk in real time.
+  lastPrices: Record<string, { quote: number; epoch: number }>;
+  setLastPrice: (symbol: string, quote: number, epoch: number) => void;
 }
 
 export const useTrading = create<State>()(
@@ -220,6 +225,14 @@ export const useTrading = create<State>()(
       resetLearning: () => set({ learning: {} }),
       getPolicy: (symbol, regime, direction) =>
         get().learning[bucketKey(symbol, regime, direction)] ?? DEFAULT_BUCKET,
+
+      lastPrices: {},
+      setLastPrice: (symbol, quote, epoch) =>
+        set((state) => {
+          const prev = state.lastPrices[symbol];
+          if (prev && prev.epoch === epoch && prev.quote === quote) return state;
+          return { lastPrices: { ...state.lastPrices, [symbol]: { quote, epoch } } };
+        }),
     }),
     {
       name: "boom-crash-agent",
