@@ -185,13 +185,14 @@ function BrainMonitor() {
     (acc, r) => {
       acc.trades += r.trades;
       acc.wins += r.wins;
+      acc.losses += r.losses;
       acc.sumR += r.sumR;
       acc.pnl += r.pnl;
       return acc;
     },
-    { trades: 0, wins: 0, sumR: 0, pnl: 0 },
+    { trades: 0, wins: 0, losses: 0, sumR: 0, pnl: 0 },
   );
-  const totalWinRate = totals.trades ? (totals.wins / totals.trades) * 100 : 0;
+  const totalWinRate = wrPct(totals.wins, totals.losses);
   const totalAvgR = totals.trades ? totals.sumR / totals.trades : 0;
   const winner = byRegime[0];
 
