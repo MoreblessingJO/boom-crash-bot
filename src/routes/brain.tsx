@@ -698,7 +698,7 @@ function BucketList({
       </div>
       <div className="divide-y divide-border/50">
         {buckets.map((b, i) => {
-          const wr = b.trades ? (b.wins / b.trades) * 100 : 0;
+          const wr = wrPct(b.wins, b.losses);
           return (
             <div
               key={`${b.sym}-${b.regime}-${b.dir}-${i}`}
