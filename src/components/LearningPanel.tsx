@@ -13,12 +13,15 @@ export function LearningPanel() {
     (acc, [, b]) => {
       acc.trades += b.trades;
       acc.wins += b.wins;
+      acc.losses += b.losses;
       acc.sumR += b.sumR;
       return acc;
     },
-    { trades: 0, wins: 0, sumR: 0 },
+    { trades: 0, wins: 0, losses: 0, sumR: 0 },
   );
-  const winRate = totals.trades ? (totals.wins / totals.trades) * 100 : 0;
+  // Win rate excludes breakevens (decided = wins + losses).
+  const decided = totals.wins + totals.losses;
+  const winRate = decided ? (totals.wins / decided) * 100 : 0;
   const avgR = totals.trades ? totals.sumR / totals.trades : 0;
 
   return (
