@@ -100,6 +100,7 @@ function Dashboard() {
         for (const s of SYMBOLS) {
           const u = client.subscribe(s.code, (t: Tick) => {
             setStates((prev) => ({ ...prev, [s.code]: pushTick(prev[s.code], t) }));
+            setLastPrice(s.code, t.quote, t.epoch);
           });
           unsubs.push(u);
         }
