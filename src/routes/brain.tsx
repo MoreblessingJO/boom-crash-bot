@@ -680,6 +680,7 @@ function BucketList({
     dir: string;
     trades: number;
     wins: number;
+    losses: number;
     avgR: number;
     sumR: number;
   }>;
