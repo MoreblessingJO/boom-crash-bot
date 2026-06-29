@@ -125,13 +125,14 @@ function Dashboard() {
     ticksSinceSpike[s.code] = st.ticksSinceSpike;
   }
 
-  // Current symbol signal (recomputes on every tick)
+  // Current symbol signal (for the UI card only)
   const sym = getSymbol(selectedSymbol);
   const symState = states[selectedSymbol] ?? emptyState();
   const signal = useMemo(() => localSignal(sym, symState), [sym, symState]);
 
   // ====== Auto-trade engine ======
-  const lastSignalRef = useRef<string>("");
+  // Dedupe per-symbol so we don't fire the same signal twice.
+  const lastSignalRef = useRef<Record<string, string>>({});
   const dailyPnlRef = useRef<{ day: string; pnl: number }>({
     day: new Date().toDateString(),
     pnl: 0,
@@ -161,7 +162,6 @@ function Dashboard() {
       }
 
       // 2) Pre-spike exit — close BEFORE the spike rather than after it.
-      // Boom spikes UP (bad for SELL); Crash spikes DOWN (bad for BUY).
       const againstSpike =
         (symDef.kind === "boom" && p.direction === "SELL") ||
         (symDef.kind === "crash" && p.direction === "BUY");
@@ -180,25 +180,12 @@ function Dashboard() {
     }
   }, [states, positions, preSpikeExitRatio, closePosition, tickPosition]);
 
-  // Entry engine — opens at most one position per symbol
+  // Entry engine — scans ALL symbols every render; opens at most one per symbol.
   useEffect(() => {
     if (!autoTrade || killSwitch) return;
-    if (mode === "signals") return; // signals-only: never auto-open
-    if (signal.regime === "wait" || !signal.direction) return;
+    if (mode === "signals") return;
 
-    // Adaptive policy from the continuous-learning loop.
-    // Only enforce after the bucket has enough samples (warmup); before
-    // that, use the strategy's own confidence with a low base floor.
-    const policy = learningEnabled
-      ? getPolicy(sym.code, signal.regime, signal.direction)
-      : null;
-    const hasWarmup = (policy?.trades ?? 0) >= 15;
-    const minConfidence = hasWarmup ? (policy?.minConfidence ?? 0.5) : 0.5;
-    if (hasWarmup && policy?.disabled) return;
-    if (signal.confidence < minConfidence) return;
-
-
-    // Daily loss guard
+    // Daily loss guard (shared across symbols).
     const today = new Date().toDateString();
     if (dailyPnlRef.current.day !== today) dailyPnlRef.current = { day: today, pnl: 0 };
     const realizedToday = positions
@@ -211,78 +198,87 @@ function Dashboard() {
       .reduce((s, p) => s + (p.pnl ?? 0), 0);
     if (realizedToday <= -Math.abs(maxDailyLoss)) return;
 
-    // One position per symbol
-    const hasOpen = positions.some(
-      (p) => p.status === "open" && p.symbol === sym.code,
-    );
-    if (hasOpen) return;
+    for (const candidate of SYMBOLS) {
+      const cState = states[candidate.code];
+      if (!cState || cState.ticks.length < 30) continue;
 
-    const last = symState.ticks.at(-1);
-    if (!last) return;
+      const cSignal = localSignal(candidate, cState);
+      if (cSignal.regime === "wait" || !cSignal.direction) continue;
 
-    // Late-entry guard for counter-spike trades: if we're already past
-    // 90% of the mean spike interval, the spike is imminent — skip.
-    const againstSpike =
-      (sym.kind === "boom" && signal.direction === "SELL") ||
-      (sym.kind === "crash" && signal.direction === "BUY");
-    if (
-      againstSpike &&
-      symState.ticksSinceSpike >= sym.avgSpikeTicks * 0.9
-    ) {
-      return;
-    }
+      const policy = learningEnabled
+        ? getPolicy(candidate.code, cSignal.regime, cSignal.direction)
+        : null;
+      const hasWarmup = (policy?.trades ?? 0) >= 15;
+      const minConfidence = hasWarmup ? (policy?.minConfidence ?? 0.5) : 0.5;
+      if (hasWarmup && policy?.disabled) continue;
+      if (cSignal.confidence < minConfidence) continue;
 
-    const sigKey = `${sym.code}:${signal.direction}:${last.epoch}`;
-    if (lastSignalRef.current === sigKey) return;
-    lastSignalRef.current = sigKey;
+      // One position per symbol.
+      const hasOpen = positions.some(
+        (p) => p.status === "open" && p.symbol === candidate.code,
+      );
+      if (hasOpen) continue;
 
-    // R-unit = current median absolute tick change. Fallback to a small
-    // fraction of price if we don't yet have a stable estimate.
-    const rUnit = symState.medianAbsChange > 0
-      ? symState.medianAbsChange
-      : Math.max(last.quote * 0.00005, 0.01);
-    const dir = signal.direction === "BUY" ? 1 : -1;
-    const tpPrice = last.quote + dir * rUnit * takeProfitR;
-    const slPrice = last.quote - dir * rUnit * stopLossR;
-    const maxHoldTicks = Math.round(sym.avgSpikeTicks * maxHoldRatio);
+      const last = cState.ticks.at(-1);
+      if (!last) continue;
 
-    const pos: Position = {
-      id: `${sym.code}-${last.epoch}-${Math.random().toString(36).slice(2, 7)}`,
-      symbol: sym.code,
-      direction: signal.direction,
-      entryPrice: last.quote,
-      entryEpoch: last.epoch,
-      stake,
-      status: "open",
-      mode,
-      reason: signal.reason,
-      regime: signal.regime,
-      rUnit,
-      tpPrice,
-      slPrice,
-      maxHoldTicks,
-      ticksHeld: 0,
-    };
-    addPosition(pos);
-    pushSignal({
-      id: pos.id,
-      symbol: sym.code,
-      epoch: last.epoch,
-      signal,
-      acted: true,
-    });
+      const againstSpike =
+        (candidate.kind === "boom" && cSignal.direction === "SELL") ||
+        (candidate.kind === "crash" && cSignal.direction === "BUY");
+      if (
+        againstSpike &&
+        cState.ticksSinceSpike >= candidate.avgSpikeTicks * 0.9
+      ) {
+        continue;
+      }
 
-    if (mode === "live" && apiToken) {
-      // Send Deriv buy proposal — synthetic indices use Rise/Fall (CALL/PUT)
-      void placeLiveTrade(sym.code, signal.direction, stake);
+      const sigKey = `${cSignal.direction}:${last.epoch}`;
+      if (lastSignalRef.current[candidate.code] === sigKey) continue;
+      lastSignalRef.current[candidate.code] = sigKey;
+
+      const rUnit = cState.medianAbsChange > 0
+        ? cState.medianAbsChange
+        : Math.max(last.quote * 0.00005, 0.01);
+      const dir = cSignal.direction === "BUY" ? 1 : -1;
+      const tpPrice = last.quote + dir * rUnit * takeProfitR;
+      const slPrice = last.quote - dir * rUnit * stopLossR;
+      const maxHoldTicks = Math.round(candidate.avgSpikeTicks * maxHoldRatio);
+
+      const pos: Position = {
+        id: `${candidate.code}-${last.epoch}-${Math.random().toString(36).slice(2, 7)}`,
+        symbol: candidate.code,
+        direction: cSignal.direction,
+        entryPrice: last.quote,
+        entryEpoch: last.epoch,
+        stake,
+        status: "open",
+        mode,
+        reason: cSignal.reason,
+        regime: cSignal.regime,
+        rUnit,
+        tpPrice,
+        slPrice,
+        maxHoldTicks,
+        ticksHeld: 0,
+      };
+      addPosition(pos);
+      pushSignal({
+        id: pos.id,
+        symbol: candidate.code,
+        epoch: last.epoch,
+        signal: cSignal,
+        acted: true,
+      });
+
+      if (mode === "live" && apiToken) {
+        void placeLiveTrade(candidate.code, cSignal.direction, stake);
+      }
     }
   }, [
-    signal,
+    states,
     autoTrade,
     killSwitch,
     mode,
-    sym,
-    symState,
     stake,
     takeProfitR,
     stopLossR,
@@ -295,6 +291,7 @@ function Dashboard() {
     learningEnabled,
     getPolicy,
   ]);
+
 
   // Spike epoch markers for selected symbol chart
   const spikeEpochs = useMemo(() => {
