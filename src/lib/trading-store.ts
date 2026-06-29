@@ -225,6 +225,14 @@ export const useTrading = create<State>()(
       resetLearning: () => set({ learning: {} }),
       getPolicy: (symbol, regime, direction) =>
         get().learning[bucketKey(symbol, regime, direction)] ?? DEFAULT_BUCKET,
+
+      lastPrices: {},
+      setLastPrice: (symbol, quote, epoch) =>
+        set((state) => {
+          const prev = state.lastPrices[symbol];
+          if (prev && prev.epoch === epoch && prev.quote === quote) return state;
+          return { lastPrices: { ...state.lastPrices, [symbol]: { quote, epoch } } };
+        }),
     }),
     {
       name: "boom-crash-agent",
