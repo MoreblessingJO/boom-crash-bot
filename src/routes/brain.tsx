@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTrading } from "@/lib/trading-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
