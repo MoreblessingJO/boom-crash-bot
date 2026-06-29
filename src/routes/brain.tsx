@@ -44,6 +44,10 @@ const REGIME_DESC: Record<string, string> = {
   wait: "No clean setup — stays flat.",
 };
 
+// Win rate excludes breakevens — denominator is decided trades (W + L).
+const wrPct = (wins: number, losses: number) =>
+  wins + losses > 0 ? (wins / (wins + losses)) * 100 : 0;
+
 function BrainMonitor() {
   const { learning, positions, resetLearning, lastPrices } = useTrading();
 
