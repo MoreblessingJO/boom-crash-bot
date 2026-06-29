@@ -407,7 +407,7 @@ function BrainMonitor() {
               )}
             >
               E[R] {winner.expectancyR.toFixed(2)} · {winner.trades} trades ·{" "}
-              {((winner.wins / winner.trades) * 100).toFixed(0)}% win
+              {wrPct(winner.wins, winner.losses).toFixed(0)}% win
             </div>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{REGIME_DESC[winner.key]}</p>
