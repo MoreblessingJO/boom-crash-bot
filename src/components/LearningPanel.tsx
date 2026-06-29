@@ -68,7 +68,8 @@ export function LearningPanel() {
             <tbody>
               {buckets.map(([k, b]) => {
                 const [sym, regime, dir] = k.split("|");
-                const wr = b.trades ? (b.wins / b.trades) * 100 : 0;
+                const wrDecided = b.wins + b.losses;
+                const wr = wrDecided ? (b.wins / wrDecided) * 100 : 0;
                 return (
                   <tr
                     key={k}
