@@ -75,7 +75,9 @@ function updateBucket(prev: BucketStats | undefined, realizedR: number): BucketS
   const b = prev ?? { ...DEFAULT_BUCKET };
   const trades = b.trades + 1;
   const wins = b.wins + (realizedR > 0 ? 1 : 0);
-  const losses = b.losses + (realizedR <= 0 ? 1 : 0);
+  // Breakevens (realizedR === 0) are excluded from both wins and losses
+  // so they don't drag down the displayed win rate.
+  const losses = b.losses + (realizedR < 0 ? 1 : 0);
   const sumR = b.sumR + realizedR;
   const alpha = 0.15;
   const expectancyR =
