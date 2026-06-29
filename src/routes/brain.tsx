@@ -274,6 +274,112 @@ function BrainMonitor() {
         />
       </div>
 
+      {/* Live open-position risk */}
+      <Section
+        title={`Open position risk · live (${openRisk.rows.length})`}
+      >
+        {openRisk.rows.length === 0 ? (
+          <Empty>No open positions. Risk meter resumes when the agent enters a trade.</Empty>
+        ) : (
+          <>
+            <div className="mb-2 grid grid-cols-3 gap-2">
+              <MiniStat
+                label="Risk at work"
+                value={`${openRisk.totalRiskR.toFixed(1)}R`}
+              />
+              <MiniStat
+                label="Unrealized R"
+                value={openRisk.totalUnrealizedR.toFixed(2)}
+                tone={
+                  openRisk.totalUnrealizedR > 0
+                    ? "boom"
+                    : openRisk.totalUnrealizedR < 0
+                      ? "crash"
+                      : "muted"
+                }
+              />
+              <MiniStat
+                label="Unrealized PnL"
+                value={`${openRisk.totalUnrealizedPnl >= 0 ? "+" : ""}${openRisk.totalUnrealizedPnl.toFixed(2)}`}
+                tone={
+                  openRisk.totalUnrealizedPnl > 0
+                    ? "boom"
+                    : openRisk.totalUnrealizedPnl < 0
+                      ? "crash"
+                      : "muted"
+                }
+              />
+            </div>
+            <div className="overflow-hidden rounded-lg border border-border bg-surface">
+              <table className="w-full text-xs">
+                <thead className="bg-surface text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="px-3 py-2 font-medium">Symbol · Side</th>
+                    <th className="px-2 py-2 text-right font-medium">Last</th>
+                    <th className="px-2 py-2 text-right font-medium">uR</th>
+                    <th className="px-2 py-2 text-right font-medium">→TP</th>
+                    <th className="px-2 py-2 text-right font-medium">→SL</th>
+                    <th className="px-3 py-2 text-right font-medium">Held</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openRisk.rows.map((r) => (
+                    <tr key={r.p.id} className="border-t border-border/50">
+                      <td className="px-3 py-1.5">
+                        <span className="font-medium">{r.p.symbol}</span> ·{" "}
+                        <span className={r.p.direction === "BUY" ? "text-boom" : "text-crash"}>
+                          {r.p.direction}
+                        </span>
+                        <div className="text-[10px] text-muted-foreground">
+                          {REGIME_LABEL[r.p.regime] ?? r.p.regime}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-tabular">
+                        {r.last.toFixed(2)}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-2 py-1.5 text-right text-tabular font-semibold",
+                          r.unrealizedR > 0 ? "text-boom" : r.unrealizedR < 0 ? "text-crash" : "",
+                        )}
+                      >
+                        {r.unrealizedR >= 0 ? "+" : ""}
+                        {r.unrealizedR.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-tabular text-boom/80">
+                        {r.distToTpR.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-tabular text-crash/80">
+                        {r.distToSlR.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-tabular">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <div className="h-1 w-12 overflow-hidden rounded-full bg-border">
+                            <div
+                              className={cn(
+                                "h-full",
+                                r.holdPct > 80 ? "bg-crash" : r.holdPct > 50 ? "bg-yellow-500" : "bg-primary",
+                              )}
+                              style={{ width: `${Math.min(100, r.holdPct)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {r.p.ticksHeld}/{r.p.maxHoldTicks}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              uR = unrealized R · →TP / →SL = R-distance to target / stop. Updates on every tick from the dashboard feed.
+            </p>
+          </>
+        )}
+      </Section>
+
       {/* Winning strategy banner */}
       {winner && winner.trades >= 5 && (
         <div
