@@ -10,7 +10,9 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
 
   const realized = closed.reduce((s, p) => s + (p.pnl ?? 0), 0);
   const wins = closed.filter((p) => (p.pnl ?? 0) > 0).length;
-  const winRate = closed.length ? (wins / closed.length) * 100 : 0;
+  const losses = closed.filter((p) => (p.pnl ?? 0) < 0).length;
+  const decided = wins + losses; // exclude breakevens from win-rate denominator
+  const winRate = decided ? (wins / decided) * 100 : 0;
   const unrealized = open.reduce((s, p) => {
     const px = livePrices[p.symbol];
     if (!px) return s;

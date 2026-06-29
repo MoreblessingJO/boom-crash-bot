@@ -44,6 +44,10 @@ const REGIME_DESC: Record<string, string> = {
   wait: "No clean setup — stays flat.",
 };
 
+// Win rate excludes breakevens — denominator is decided trades (W + L).
+const wrPct = (wins: number, losses: number) =>
+  wins + losses > 0 ? (wins / (wins + losses)) * 100 : 0;
+
 function BrainMonitor() {
   const { learning, positions, resetLearning, lastPrices } = useTrading();
 
@@ -181,13 +185,14 @@ function BrainMonitor() {
     (acc, r) => {
       acc.trades += r.trades;
       acc.wins += r.wins;
+      acc.losses += r.losses;
       acc.sumR += r.sumR;
       acc.pnl += r.pnl;
       return acc;
     },
-    { trades: 0, wins: 0, sumR: 0, pnl: 0 },
+    { trades: 0, wins: 0, losses: 0, sumR: 0, pnl: 0 },
   );
-  const totalWinRate = totals.trades ? (totals.wins / totals.trades) * 100 : 0;
+  const totalWinRate = wrPct(totals.wins, totals.losses);
   const totalAvgR = totals.trades ? totals.sumR / totals.trades : 0;
   const winner = byRegime[0];
 
@@ -402,7 +407,7 @@ function BrainMonitor() {
               )}
             >
               E[R] {winner.expectancyR.toFixed(2)} · {winner.trades} trades ·{" "}
-              {((winner.wins / winner.trades) * 100).toFixed(0)}% win
+              {wrPct(winner.wins, winner.losses).toFixed(0)}% win
             </div>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{REGIME_DESC[winner.key]}</p>
@@ -416,7 +421,7 @@ function BrainMonitor() {
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {byRegime.map((r) => {
-              const wr = r.trades ? (r.wins / r.trades) * 100 : 0;
+              const wr = wrPct(r.wins, r.losses);
               return (
                 <div
                   key={r.key}
@@ -490,7 +495,7 @@ function BrainMonitor() {
               <tbody>
                 {byRegimeDir.map((r) => {
                   const [regime, dir] = r.key.split("·");
-                  const wr = r.trades ? (r.wins / r.trades) * 100 : 0;
+                  const wr = wrPct(r.wins, r.losses);
                   return (
                     <tr key={r.key} className="border-t border-border/50">
                       <td className="px-3 py-1.5">
@@ -536,7 +541,7 @@ function BrainMonitor() {
         <div className="grid gap-2 md:grid-cols-3">
           {indicators.map((ind) => {
             const a = ind.agg;
-            const wr = a && a.trades ? (a.wins / a.trades) * 100 : 0;
+            const wr = a ? wrPct(a.wins, a.losses) : 0;
             return (
               <div
                 key={ind.name}
@@ -675,6 +680,7 @@ function BucketList({
     dir: string;
     trades: number;
     wins: number;
+    losses: number;
     avgR: number;
     sumR: number;
   }>;
@@ -692,7 +698,7 @@ function BucketList({
       </div>
       <div className="divide-y divide-border/50">
         {buckets.map((b, i) => {
-          const wr = b.trades ? (b.wins / b.trades) * 100 : 0;
+          const wr = wrPct(b.wins, b.losses);
           return (
             <div
               key={`${b.sym}-${b.regime}-${b.dir}-${i}`}

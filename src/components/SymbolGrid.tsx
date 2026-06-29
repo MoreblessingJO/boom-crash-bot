@@ -14,12 +14,15 @@ interface Props {
 export function SymbolGrid({ selected, onSelect, prices, changes, ticksSinceSpike }: Props) {
   const positions = useTrading((s) => s.positions);
   const stats = useMemo(() => {
-    const out: Record<string, { trades: number; wins: number }> = {};
+    const out: Record<string, { trades: number; wins: number; losses: number }> = {};
     for (const p of positions) {
       if (p.status !== "closed") continue;
-      const o = (out[p.symbol] ??= { trades: 0, wins: 0 });
+      const o = (out[p.symbol] ??= { trades: 0, wins: 0, losses: 0 });
       o.trades += 1;
-      if ((p.pnl ?? 0) > 0) o.wins += 1;
+      const pnl = p.pnl ?? 0;
+      if (pnl > 0) o.wins += 1;
+      else if (pnl < 0) o.losses += 1;
+      // pnl === 0 → breakeven, excluded from win-rate denominator
     }
     return out;
   }, [positions]);
@@ -65,19 +68,21 @@ export function SymbolGrid({ selected, onSelect, prices, changes, ticksSinceSpik
               </span>
               {(() => {
                 const st = stats[s.code];
-                if (!st || st.trades === 0) {
+                const decided = st ? st.wins + st.losses : 0;
+                if (!st || decided === 0) {
                   return <span className="text-muted-foreground">—</span>;
                 }
-                const wr = (st.wins / st.trades) * 100;
+                const wr = (st.wins / decided) * 100;
+                const be = st.trades - decided;
                 return (
                   <span
                     className={cn(
                       "text-tabular font-semibold",
                       wr >= 60 ? "text-boom" : wr >= 45 ? "text-warn" : "text-crash",
                     )}
-                    title={`${st.wins}W / ${st.trades - st.wins}L`}
+                    title={`${st.wins}W / ${st.losses}L${be ? ` / ${be}BE` : ""}`}
                   >
-                    {wr.toFixed(0)}% ({st.trades})
+                    {wr.toFixed(0)}% ({decided})
                   </span>
                 );
               })()}
