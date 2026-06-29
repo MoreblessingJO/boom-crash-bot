@@ -541,7 +541,7 @@ function BrainMonitor() {
         <div className="grid gap-2 md:grid-cols-3">
           {indicators.map((ind) => {
             const a = ind.agg;
-            const wr = a && a.trades ? (a.wins / a.trades) * 100 : 0;
+            const wr = a ? wrPct(a.wins, a.losses) : 0;
             return (
               <div
                 key={ind.name}
