@@ -220,11 +220,32 @@ function BrainMonitor() {
               Brain <span className="text-primary">Monitor</span>
             </h1>
             <p className="text-xs text-muted-foreground">
-              Strategy & indicator performance — what's actually paying.
+              Live strategy, indicator & open-position risk.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider",
+              isLive
+                ? "border-boom/40 bg-boom/10 text-boom"
+                : "border-border bg-surface text-muted-foreground",
+            )}
+            title={
+              secondsSinceTick === null
+                ? "Open the dashboard to start the tick feed"
+                : `Last tick ${secondsSinceTick}s ago`
+            }
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isLive ? "bg-boom animate-pulse" : "bg-muted-foreground",
+              )}
+            />
+            {isLive ? "Live" : secondsSinceTick === null ? "Idle" : `${secondsSinceTick}s`}
+          </div>
           <Button variant="ghost" size="sm" onClick={resetLearning}>
             Reset learner
           </Button>
