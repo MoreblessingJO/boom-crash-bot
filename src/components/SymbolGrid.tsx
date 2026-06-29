@@ -68,19 +68,21 @@ export function SymbolGrid({ selected, onSelect, prices, changes, ticksSinceSpik
               </span>
               {(() => {
                 const st = stats[s.code];
-                if (!st || st.trades === 0) {
+                const decided = st ? st.wins + st.losses : 0;
+                if (!st || decided === 0) {
                   return <span className="text-muted-foreground">—</span>;
                 }
-                const wr = (st.wins / st.trades) * 100;
+                const wr = (st.wins / decided) * 100;
+                const be = st.trades - decided;
                 return (
                   <span
                     className={cn(
                       "text-tabular font-semibold",
                       wr >= 60 ? "text-boom" : wr >= 45 ? "text-warn" : "text-crash",
                     )}
-                    title={`${st.wins}W / ${st.trades - st.wins}L`}
+                    title={`${st.wins}W / ${st.losses}L${be ? ` / ${be}BE` : ""}`}
                   >
-                    {wr.toFixed(0)}% ({st.trades})
+                    {wr.toFixed(0)}% ({decided})
                   </span>
                 );
               })()}
