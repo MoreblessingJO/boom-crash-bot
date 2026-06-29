@@ -139,6 +139,10 @@ function Dashboard() {
   });
 
   // Manage exits on every tick: TP / SL / pre-spike / time stop.
+  // Dedupe per (positionId, tick-epoch) so we only increment ticksHeld once
+  // per real new tick — otherwise tickPosition would update `positions`,
+  // re-trigger this effect, and loop until React bails out.
+  const lastTickRef = useRef<Record<string, number>>({});
   useEffect(() => {
     const open = positions.filter((p) => p.status === "open");
     for (const p of open) {
@@ -146,12 +150,13 @@ function Dashboard() {
       const st = states[p.symbol];
       const last = st?.ticks.at(-1);
       if (!last) continue;
+      if (lastTickRef.current[p.id] === last.epoch) continue;
+      lastTickRef.current[p.id] = last.epoch;
 
       tickPosition(p.id);
 
       const dir = p.direction === "BUY" ? 1 : -1;
 
-      // 1) TP / SL based on per-position price thresholds.
       if (dir === 1 ? last.quote >= p.tpPrice : last.quote <= p.tpPrice) {
         closePosition(p.id, last.quote, last.epoch, "TP");
         continue;
@@ -161,7 +166,6 @@ function Dashboard() {
         continue;
       }
 
-      // 2) Pre-spike exit — close BEFORE the spike rather than after it.
       const againstSpike =
         (symDef.kind === "boom" && p.direction === "SELL") ||
         (symDef.kind === "crash" && p.direction === "BUY");
@@ -173,12 +177,16 @@ function Dashboard() {
         continue;
       }
 
-      // 3) Time stop.
       if (p.ticksHeld >= p.maxHoldTicks) {
         closePosition(p.id, last.quote, last.epoch, "time");
       }
     }
-  }, [states, positions, preSpikeExitRatio, closePosition, tickPosition]);
+    // Intentionally only depend on `states` — `positions` is read fresh
+    // each run but must not be a dep, or tickPosition's update re-fires us.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states, preSpikeExitRatio]);
+
+
 
   // Entry engine — scans ALL symbols every render; opens at most one per symbol.
   useEffect(() => {
