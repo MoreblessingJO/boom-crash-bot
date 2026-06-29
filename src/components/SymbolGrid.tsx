@@ -1,5 +1,7 @@
 import { SYMBOLS } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
+import { useTrading } from "@/lib/trading-store";
+import { useMemo } from "react";
 
 interface Props {
   selected: string;
@@ -10,6 +12,17 @@ interface Props {
 }
 
 export function SymbolGrid({ selected, onSelect, prices, changes, ticksSinceSpike }: Props) {
+  const positions = useTrading((s) => s.positions);
+  const stats = useMemo(() => {
+    const out: Record<string, { trades: number; wins: number }> = {};
+    for (const p of positions) {
+      if (p.status !== "closed") continue;
+      const o = (out[p.symbol] ??= { trades: 0, wins: 0 });
+      o.trades += 1;
+      if ((p.pnl ?? 0) > 0) o.wins += 1;
+    }
+    return out;
+  }, [positions]);
   return (
     <div className="grid grid-cols-3 gap-2 lg:grid-cols-6">
       {SYMBOLS.map((s) => {
