@@ -64,6 +64,7 @@ function Dashboard() {
     apiToken,
     learningEnabled,
     getPolicy,
+    setLastPrice,
   } = useTrading();
 
   // Connect once
