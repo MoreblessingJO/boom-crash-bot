@@ -49,7 +49,8 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
           <div className="col-span-2">Mark</div>
           <div className="col-span-2">P&L</div>
           <div className="col-span-1">Mode</div>
-          <div className="col-span-2">Status</div>
+          <div className="col-span-1">Status</div>
+          <div className="col-span-1 text-right">Action</div>
         </div>
         <div className="max-h-[420px] overflow-y-auto text-tabular">
           {positions.length === 0 && (
