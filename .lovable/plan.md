@@ -1,84 +1,58 @@
-# 24/7 Server-Side Trading Agent
+# Why only 2 of 6 symbols are trading
 
-Goal: agent keeps trading, learning, and tracking P&L when your browser/laptop is off. The browser becomes a viewer — close it, the agent keeps running.
+I checked the DB. Of the 59 closed positions ever opened, **100% are on BOOM300N or CRASH300N**. The other 4 symbols (BOOM/CRASH 500 and 1000) have **never** opened a trade. Looking at the last ~40 signal rows, every signal for BOOM500/CRASH500/BOOM1000/CRASH1000 is `regime: wait, confidence: 0.2` ("No clear regime — staying flat"). They aren't being skipped by the learner or daily-loss guard — the strategy is literally never producing a directional signal for them.
 
-## Architecture
+## Root cause
 
-```text
-                ┌──────────────────────────────┐
-                │   Lovable Cloud (Postgres)   │ ← single source of truth
-                │  settings · positions ·       │
-                │  signals · learning_buckets · │
-                │  ticks_cache · runs           │
-                └────────────▲─────────────────┘
-                             │ read/write
-   pg_cron (every 30s) ──►  /api/public/tick-engine  (server route)
-                             │
-                             ├── fetch latest ticks from Deriv REST/WS (short-lived)
-                             ├── update per-symbol state + spike detection
-                             ├── evaluate hybrid strategy + learner gating
-                             ├── open / manage / close positions
-                             └── write everything back to DB
+In `engine.server.ts` we fetch a fixed **200-tick window** per symbol:
 
-   Browser (dashboard + brain)  ──►  reads DB via server fns
-                                     subscribes to Realtime for live updates
-                                     control panel writes settings rows
+```
+const ticks = await fetchTicksHistory(sym.code, 200);
 ```
 
-## What the user gets
+`localSignal` only proposes a spike-anticipation entry when `ticksSinceSpike / avgSpikeTicks > 0.6`. With a 200-tick window the maximum possible `ticksSinceSpike` is ~199, so:
 
-- Close the tab → trades keep firing on the server.
-- Reopen → dashboard hydrates from DB (balance, open positions, history, learner state — no resets).
-- Control panel (mode, stake, R-multiples, kill switch, learning toggles) writes to a `settings` row the cron loop reads on every tick.
-- Brain monitor + symbol cards reflect server-side stats in real time via Supabase Realtime.
+| Symbol      | avgSpikeTicks | Max possible dueRatio | Can trigger >0.6? |
+| ----------- | ------------- | --------------------- | ----------------- |
+| BOOM/CRASH 300  | 300       | ~0.66                 | Yes (barely)      |
+| BOOM/CRASH 500  | 500       | ~0.40                 | No                |
+| BOOM/CRASH 1000 | 1000      | ~0.20                 | No                |
 
-## Trade-off you already accepted
+That's exactly the split we see in production. Trend-following almost never fires on these indices (it needs EMA10/30 cross + RSI in a narrow band), so without spike-anticipation the 500/1000 symbols are permanently flat.
 
-Cloudflare Workers can't hold a long-lived WebSocket, so the loop runs on a **30-second cron** using Deriv's REST endpoint for recent ticks. This means:
-- Spike-anticipation entries fire within ~30s of the trigger (vs. sub-second today).
-- Trend-following is unaffected.
-- If you later want millisecond reactivity, you'd run a tiny Node worker on a $5 VPS pointed at the same DB — same code, different host.
+It's not a "no clear signal so we stay safe" case — we're blind to the signal because the lookback window is too short for the slower symbols.
 
-Live trading (real Deriv account) requires a Deriv API token stored as a server secret. Paper + signals modes work without it.
+## The fix
 
-## Build steps
+Scale the history fetch per symbol so every symbol has enough lookback to *observe* a full spike cycle, plus margin.
 
-1. **Enable Lovable Cloud** (DB + auth + secrets).
-2. **Schema migration** — tables with RLS + grants:
-   - `settings` (single row per user: mode, stake, R-multiples, guards, kill switch, enabled symbols)
-   - `positions` (id, symbol, side, regime, entry/exit, R, pnl, status, opened_at, closed_at)
-   - `signals` (audit log of every evaluation: symbol, regime, direction, confidence, reason, acted)
-   - `learning_buckets` (symbol·regime·direction → trades, wins, losses, ewma_R, disabled)
-   - `symbol_state` (symbol → last tick epoch/price, ticks_since_spike, ema_fast, ema_slow, rsi, median_abs_change, recent ticks JSONB)
-   - `engine_runs` (cron heartbeat: started_at, finished_at, symbols_scanned, trades_opened, error)
-3. **Port strategy + learner** from `src/lib/` to server-side modules (`*.server.ts`): `strategy.server.ts`, `learner.server.ts`. Same math, DB-backed state.
-4. **Cron endpoint** `src/routes/api/public/tick-engine.ts`:
-   - HMAC-verify caller (shared `CRON_SECRET`).
-   - Load settings; if kill switch on, write heartbeat and exit.
-   - For each enabled symbol: fetch last N ticks from Deriv REST, update state, run `localSignal`, apply learner gates, open/close positions, log signal.
-   - Manage open positions: TP/SL, pre-spike exit, time stop.
-   - Update learning buckets on every close.
-5. **pg_cron job** scheduled every 30s hitting the endpoint with the secret.
-6. **Server functions for the UI** (`*.functions.ts`):
-   - `getDashboardState` → settings + open positions + recent closes + symbol_state snapshot.
-   - `getBrainStats` → aggregates for brain monitor.
-   - `updateSettings`, `resetLearner`, `flattenAll`, `togglePause`.
-7. **Frontend refactor**:
-   - Replace Zustand-as-source with Zustand-as-cache hydrated from DB.
-   - Subscribe to Realtime on `positions`, `symbol_state`, `learning_buckets` → push into cache.
-   - Control panel writes via `updateSettings` server fn.
-   - Keep existing `TickChart`, `SymbolGrid`, `PositionsPanel`, `LearningPanel`, `Brain` pages — only their data source changes.
-8. **Live trading path** (optional, behind toggle): if mode = `live` and `DERIV_API_TOKEN` secret set, the cron loop authorizes and places real trades; otherwise paper-only.
+### Change in `src/lib/deriv-history.server.ts`
+No code change — already accepts a `count` arg up to several thousand (Deriv allows up to 5000).
 
-## Secrets needed
+### Change in `src/lib/engine.server.ts`
+Replace the hardcoded `200` with a per-symbol count derived from `avgSpikeTicks`:
 
-- `CRON_SECRET` — auto-generated; signs the cron call.
-- `DERIV_API_TOKEN` — only when you flip live mode on; I'll request it then, not now.
+```ts
+const histCount = Math.min(5000, Math.max(300, Math.round(sym.avgSpikeTicks * 2.5)));
+const ticks = await fetchTicksHistory(sym.code, histCount);
+```
 
-## Out of scope for this step
+This gives:
+- 300-tick symbols → 750 ticks lookback
+- 500-tick symbols → 1250 ticks lookback
+- 1000-tick symbols → 2500 ticks lookback
 
-- Auth/multi-user (single-operator app; one settings row). Easy to add later.
-- VPS deployment for sub-second reactivity.
-- Real ML model — bandit learner stays as-is server-side.
+All four currently-blind symbols can now reach `dueRatio > 0.6` and emit spike-anticipation signals when actually due. The existing learner gate, late-entry guard, and confidence floor stay in place, so we still won't trade when there's no real edge — but at least we'll be *evaluating* all 6 instead of only 2.
 
-After approval I'll enable Cloud, ship the migration, the cron engine, and rewire the frontend.
+### Side effects to be aware of
+- Slightly more bandwidth and a bit more CPU per cron tick (still well under the 30s budget — six short-lived WS fetches in parallel-friendly serial loop).
+- `symbol_state.recent_ticks` still only stores the last 60 ticks, so the UI payload doesn't grow.
+- `medianAbsChange` is computed on the last 100 ticks regardless of window size, so spike-detection scale stays stable.
+
+## What I am NOT changing
+
+- Strategy math, thresholds, R-multiples, learner, late-entry/time-stop guards — all untouched.
+- DB schema — untouched.
+- UI — untouched.
+
+Single targeted fix to the lookback window so the slower symbols stop being structurally invisible to the engine.
