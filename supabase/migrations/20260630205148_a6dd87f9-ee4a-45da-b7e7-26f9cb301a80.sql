@@ -1,0 +1,1 @@
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS risk_pct numeric NOT NULL DEFAULT 0.01;

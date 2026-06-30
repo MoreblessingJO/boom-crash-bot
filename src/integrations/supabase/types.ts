@@ -167,6 +167,7 @@ export type Database = {
           mode: string
           paper_balance: number
           pre_spike_ratio: number
+          risk_pct: number
           sl_r: number
           stake: number
           tp_r: number
@@ -183,6 +184,7 @@ export type Database = {
           mode?: string
           paper_balance?: number
           pre_spike_ratio?: number
+          risk_pct?: number
           sl_r?: number
           stake?: number
           tp_r?: number
@@ -199,6 +201,7 @@ export type Database = {
           mode?: string
           paper_balance?: number
           pre_spike_ratio?: number
+          risk_pct?: number
           sl_r?: number
           stake?: number
           tp_r?: number
