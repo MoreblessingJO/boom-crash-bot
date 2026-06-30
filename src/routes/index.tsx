@@ -16,6 +16,7 @@ import { PositionsPanel } from "@/components/PositionsPanel";
 import { ControlPanel } from "@/components/ControlPanel";
 import { SymbolGrid } from "@/components/SymbolGrid";
 import { LearningPanel } from "@/components/LearningPanel";
+import { EngineStatus } from "@/components/EngineStatus";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -147,6 +148,7 @@ function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <EngineStatus />
           <a
             href="/brain"
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:border-primary/40"

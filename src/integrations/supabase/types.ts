@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      engine_heartbeat: {
+        Row: {
+          id: number
+          last_tick_epoch: number | null
+          status: string
+          symbols_connected: number
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          last_tick_epoch?: number | null
+          status?: string
+          symbols_connected?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          last_tick_epoch?: number | null
+          status?: string
+          symbols_connected?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       engine_runs: {
         Row: {
           duration_ms: number | null
@@ -158,6 +182,7 @@ export type Database = {
       settings: {
         Row: {
           enabled_symbols: string[]
+          external_worker_enabled: boolean
           id: number
           kill_switch: boolean
           late_entry_ratio: number
@@ -175,6 +200,7 @@ export type Database = {
         }
         Insert: {
           enabled_symbols?: string[]
+          external_worker_enabled?: boolean
           id?: number
           kill_switch?: boolean
           late_entry_ratio?: number
@@ -192,6 +218,7 @@ export type Database = {
         }
         Update: {
           enabled_symbols?: string[]
+          external_worker_enabled?: boolean
           id?: number
           kill_switch?: boolean
           late_entry_ratio?: number
