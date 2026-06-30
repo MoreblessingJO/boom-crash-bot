@@ -28,6 +28,7 @@ export const getDashboardState = createServerFn({ method: "GET" }).handler(async
 const SettingsPatch = z.object({
   mode: z.enum(["paper", "signals", "live"]).optional(),
   stake: z.number().positive().optional(),
+  risk_pct: z.number().min(0).max(0.5).optional(),
   tp_r: z.number().positive().optional(),
   sl_r: z.number().positive().optional(),
   pre_spike_ratio: z.number().min(0).max(2).optional(),
