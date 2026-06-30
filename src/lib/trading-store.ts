@@ -168,24 +168,36 @@ export const useTrading = create<State>()(
   persist(
     (set, get) => ({
       mode: "paper",
-      setMode: (mode) => set({ mode }),
+      setMode: (mode) => { set({ mode }); pushServer({ mode }); },
       apiToken: null,
       setApiToken: (apiToken) => set({ apiToken }),
       selectedSymbol: "BOOM1000",
       selectSymbol: (selectedSymbol) => set({ selectedSymbol }),
-      autoTrade: false,
+      autoTrade: true,
       setAutoTrade: (autoTrade) => set({ autoTrade }),
-      stake: 1,
-      setStake: (stake) => set({ stake }),
+      stake: 10,
+      setStake: (stake) => { set({ stake }); pushServer({ stake }); },
       takeProfitR: 3,
       stopLossR: 1,
-      setRisk: (takeProfitR, stopLossR) => set({ takeProfitR, stopLossR }),
+      setRisk: (takeProfitR, stopLossR) => {
+        set({ takeProfitR, stopLossR });
+        pushServer({ tp_r: takeProfitR, sl_r: stopLossR });
+      },
       maxHoldRatio: 1.2,
-      setMaxHoldRatio: (maxHoldRatio) => set({ maxHoldRatio }),
+      setMaxHoldRatio: (maxHoldRatio) => {
+        set({ maxHoldRatio });
+        pushServer({ max_hold_ratio: maxHoldRatio });
+      },
       preSpikeExitRatio: 0.8,
-      setPreSpikeExitRatio: (preSpikeExitRatio) => set({ preSpikeExitRatio }),
-      maxDailyLoss: 50,
-      setMaxDailyLoss: (maxDailyLoss) => set({ maxDailyLoss }),
+      setPreSpikeExitRatio: (preSpikeExitRatio) => {
+        set({ preSpikeExitRatio });
+        pushServer({ pre_spike_ratio: preSpikeExitRatio });
+      },
+      maxDailyLoss: 100,
+      setMaxDailyLoss: (maxDailyLoss) => {
+        set({ maxDailyLoss });
+        pushServer({ max_daily_loss: maxDailyLoss });
+      },
       positions: [],
       addPosition: (p) => set({ positions: [p, ...get().positions].slice(0, 500) }),
       closePosition: (id, exitPrice, exitEpoch, exitReason) =>
@@ -194,7 +206,6 @@ export const useTrading = create<State>()(
           if (!pos || pos.status === "closed") return state;
           const dir = pos.direction === "BUY" ? 1 : -1;
           const pnl = (exitPrice - pos.entryPrice) * dir * pos.stake;
-          // Realized R = price move in R-units (independent of stake).
           const realizedR = pos.rUnit > 0
             ? ((exitPrice - pos.entryPrice) * dir) / pos.rUnit
             : 0;
@@ -225,14 +236,17 @@ export const useTrading = create<State>()(
       signals: [],
       pushSignal: (s) => set({ signals: [s, ...get().signals].slice(0, 100) }),
       paperBalance: 1000,
-      resetPaper: () => set({ paperBalance: 1000, positions: [] }),
+      resetPaper: () => { set({ paperBalance: 1000, positions: [] }); void resetPaperBalance({ data: undefined as never }).catch(() => {}); },
       killSwitch: false,
-      setKill: (killSwitch) => set({ killSwitch }),
+      setKill: (killSwitch) => { set({ killSwitch }); pushServer({ kill_switch: killSwitch }); },
 
       learning: {},
       learningEnabled: true,
-      setLearningEnabled: (learningEnabled) => set({ learningEnabled }),
-      resetLearning: () => set({ learning: {} }),
+      setLearningEnabled: (learningEnabled) => {
+        set({ learningEnabled });
+        pushServer({ learning_enabled: learningEnabled });
+      },
+      resetLearning: () => { set({ learning: {} }); void resetLearner({ data: undefined as never }).catch(() => {}); },
       getPolicy: (symbol, regime, direction) =>
         get().learning[bucketKey(symbol, regime, direction)] ?? DEFAULT_BUCKET,
 
@@ -243,6 +257,8 @@ export const useTrading = create<State>()(
           if (prev && prev.epoch === epoch && prev.quote === quote) return state;
           return { lastPrices: { ...state.lastPrices, [symbol]: { quote, epoch } } };
         }),
+
+      flatten: () => { void flattenAll({ data: undefined as never }).catch(() => {}); },
     }),
     {
       name: "boom-crash-agent",
