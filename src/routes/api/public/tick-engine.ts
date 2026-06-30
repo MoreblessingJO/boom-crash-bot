@@ -18,6 +18,20 @@ export const Route = createFileRoute("/api/public/tick-engine")({
         const { runEngine } = await import("@/lib/engine.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+        // Stand down if the external (DigitalOcean) worker is the source of truth.
+        // Belt-and-braces: also stand down when a fresh heartbeat (<30s old) is
+        // present even if the flag was never flipped — both engines must never race.
+        const { data: settingsRow } = await supabaseAdmin
+          .from("settings").select("external_worker_enabled").eq("id", 1).maybeSingle();
+        const { data: hb } = await supabaseAdmin
+          .from("engine_heartbeat").select("updated_at").eq("id", 1).maybeSingle();
+        const hbFresh = hb?.updated_at
+          ? (Date.now() - new Date(hb.updated_at).getTime()) < 30_000
+          : false;
+        if (settingsRow?.external_worker_enabled || hbFresh) {
+          return Response.json({ ok: true, skipped: "external_worker_active" });
+        }
+
         let result;
         let errText: string | null = null;
         try {
