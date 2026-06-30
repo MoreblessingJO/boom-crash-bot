@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { useTrading } from "@/lib/trading-store";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { closePosition } from "@/lib/agent.functions";
+import { toast } from "sonner";
 
 export function PositionsPanel({ livePrices }: { livePrices: Record<string, number> }) {
   const positions = useTrading((s) => s.positions);
@@ -45,7 +49,8 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
           <div className="col-span-2">Mark</div>
           <div className="col-span-2">P&L</div>
           <div className="col-span-1">Mode</div>
-          <div className="col-span-2">Status</div>
+          <div className="col-span-1">Status</div>
+          <div className="col-span-1 text-right">Action</div>
         </div>
         <div className="max-h-[420px] overflow-y-auto text-tabular">
           {positions.length === 0 && (
@@ -89,7 +94,7 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
                 <div className="col-span-1 text-xs uppercase text-muted-foreground">
                   {p.mode}
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1">
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] uppercase",
@@ -101,12 +106,47 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
                     {p.status}
                   </span>
                 </div>
+                <div className="col-span-1 flex justify-end">
+                  {p.status === "open" && (
+                    <CloseButton id={p.id} symbol={p.symbol} />
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
     </div>
+  );
+}
+
+function CloseButton({ id, symbol }: { id: string; symbol: string }) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={loading}
+      className="h-7 px-2 text-xs"
+      onClick={async () => {
+        setLoading(true);
+        try {
+          const res = await closePosition({ data: { id } });
+          if (res?.ok) {
+            const pnl = res.pnl ?? 0;
+            toast.success(`Closed ${symbol} · ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`);
+          } else {
+            toast.error(`Could not close ${symbol}`);
+          }
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Close failed");
+        } finally {
+          setLoading(false);
+        }
+      }}
+    >
+      {loading ? "…" : "Close"}
+    </Button>
   );
 }
 

@@ -81,6 +81,29 @@ export const flattenAll = createServerFn({ method: "POST" }).handler(async () =>
   return { ok: true, closed: (open ?? []).length };
 });
 
+export const closePosition = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: p } = await supabaseAdmin.from("positions").select("*").eq("id", data.id).eq("status", "open").maybeSingle();
+    if (!p) return { ok: false, reason: "not_open" };
+    const { data: st } = await supabaseAdmin.from("symbol_state").select("last_price,last_epoch").eq("symbol", p.symbol).maybeSingle();
+    const exitPrice = Number(st?.last_price ?? p.entry_price);
+    const dir = p.side === "BUY" ? 1 : -1;
+    const realized_r = p.unit > 0 ? ((exitPrice - Number(p.entry_price)) * dir) / Number(p.unit) : 0;
+    const pnl = realized_r * Number(p.stake);
+    await supabaseAdmin.from("positions").update({
+      status: "closed",
+      exit_price: exitPrice,
+      closed_epoch: st?.last_epoch ?? p.opened_epoch,
+      closed_at: new Date().toISOString(),
+      pnl,
+      realized_r,
+      exit_reason: "MANUAL",
+    }).eq("id", p.id);
+    return { ok: true, pnl, realized_r };
+  });
+
 export const resetPaperBalance = createServerFn({ method: "POST" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   await supabaseAdmin.from("settings").update({ paper_balance: 1000 }).eq("id", 1);
