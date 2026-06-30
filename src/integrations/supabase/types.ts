@@ -14,7 +14,273 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      engine_runs: {
+        Row: {
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
+          id: number
+          started_at: string
+          symbols_scanned: number
+          trades_closed: number
+          trades_opened: number
+        }
+        Insert: {
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: number
+          started_at?: string
+          symbols_scanned?: number
+          trades_closed?: number
+          trades_opened?: number
+        }
+        Update: {
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: number
+          started_at?: string
+          symbols_scanned?: number
+          trades_closed?: number
+          trades_opened?: number
+        }
+        Relationships: []
+      }
+      learning_buckets: {
+        Row: {
+          bucket_key: string
+          direction: string
+          disabled: boolean
+          ewma_r: number
+          losses: number
+          regime: string
+          symbol: string
+          trades: number
+          updated_at: string
+          wins: number
+        }
+        Insert: {
+          bucket_key: string
+          direction: string
+          disabled?: boolean
+          ewma_r?: number
+          losses?: number
+          regime: string
+          symbol: string
+          trades?: number
+          updated_at?: string
+          wins?: number
+        }
+        Update: {
+          bucket_key?: string
+          direction?: string
+          disabled?: boolean
+          ewma_r?: number
+          losses?: number
+          regime?: string
+          symbol?: string
+          trades?: number
+          updated_at?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      positions: {
+        Row: {
+          closed_at: string | null
+          closed_epoch: number | null
+          confidence: number | null
+          entry_price: number
+          exit_price: number | null
+          exit_reason: string | null
+          id: string
+          opened_at: string
+          opened_epoch: number
+          pnl: number | null
+          realized_r: number | null
+          reason: string | null
+          regime: string
+          side: string
+          sl_r: number
+          stake: number
+          status: string
+          symbol: string
+          tp_r: number
+          unit: number
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_epoch?: number | null
+          confidence?: number | null
+          entry_price: number
+          exit_price?: number | null
+          exit_reason?: string | null
+          id?: string
+          opened_at?: string
+          opened_epoch: number
+          pnl?: number | null
+          realized_r?: number | null
+          reason?: string | null
+          regime: string
+          side: string
+          sl_r: number
+          stake: number
+          status?: string
+          symbol: string
+          tp_r: number
+          unit: number
+        }
+        Update: {
+          closed_at?: string | null
+          closed_epoch?: number | null
+          confidence?: number | null
+          entry_price?: number
+          exit_price?: number | null
+          exit_reason?: string | null
+          id?: string
+          opened_at?: string
+          opened_epoch?: number
+          pnl?: number | null
+          realized_r?: number | null
+          reason?: string | null
+          regime?: string
+          side?: string
+          sl_r?: number
+          stake?: number
+          status?: string
+          symbol?: string
+          tp_r?: number
+          unit?: number
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          enabled_symbols: string[]
+          id: number
+          kill_switch: boolean
+          late_entry_ratio: number
+          learning_enabled: boolean
+          max_daily_loss: number
+          max_hold_ratio: number
+          mode: string
+          paper_balance: number
+          pre_spike_ratio: number
+          sl_r: number
+          stake: number
+          tp_r: number
+          updated_at: string
+        }
+        Insert: {
+          enabled_symbols?: string[]
+          id?: number
+          kill_switch?: boolean
+          late_entry_ratio?: number
+          learning_enabled?: boolean
+          max_daily_loss?: number
+          max_hold_ratio?: number
+          mode?: string
+          paper_balance?: number
+          pre_spike_ratio?: number
+          sl_r?: number
+          stake?: number
+          tp_r?: number
+          updated_at?: string
+        }
+        Update: {
+          enabled_symbols?: string[]
+          id?: number
+          kill_switch?: boolean
+          late_entry_ratio?: number
+          learning_enabled?: boolean
+          max_daily_loss?: number
+          max_hold_ratio?: number
+          mode?: string
+          paper_balance?: number
+          pre_spike_ratio?: number
+          sl_r?: number
+          stake?: number
+          tp_r?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signals: {
+        Row: {
+          acted: boolean
+          confidence: number
+          created_at: string
+          direction: string | null
+          id: number
+          reason: string | null
+          regime: string
+          symbol: string
+        }
+        Insert: {
+          acted?: boolean
+          confidence?: number
+          created_at?: string
+          direction?: string | null
+          id?: number
+          reason?: string | null
+          regime: string
+          symbol: string
+        }
+        Update: {
+          acted?: boolean
+          confidence?: number
+          created_at?: string
+          direction?: string | null
+          id?: number
+          reason?: string | null
+          regime?: string
+          symbol?: string
+        }
+        Relationships: []
+      }
+      symbol_state: {
+        Row: {
+          ema_fast: number
+          ema_slow: number
+          last_epoch: number | null
+          last_price: number | null
+          last_spike_epoch: number | null
+          median_abs_change: number
+          recent_ticks: Json
+          rsi: number
+          symbol: string
+          ticks_since_spike: number
+          updated_at: string
+        }
+        Insert: {
+          ema_fast?: number
+          ema_slow?: number
+          last_epoch?: number | null
+          last_price?: number | null
+          last_spike_epoch?: number | null
+          median_abs_change?: number
+          recent_ticks?: Json
+          rsi?: number
+          symbol: string
+          ticks_since_spike?: number
+          updated_at?: string
+        }
+        Update: {
+          ema_fast?: number
+          ema_slow?: number
+          last_epoch?: number | null
+          last_price?: number | null
+          last_spike_epoch?: number | null
+          median_abs_change?: number
+          recent_ticks?: Json
+          rsi?: number
+          symbol?: string
+          ticks_since_spike?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
