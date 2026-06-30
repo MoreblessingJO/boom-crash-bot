@@ -40,6 +40,7 @@ interface Settings {
   learning_enabled: boolean;
   enabled_symbols: string[];
   paper_balance: number;
+  risk_pct: number;
 }
 
 interface Bucket {
