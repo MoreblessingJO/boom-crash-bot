@@ -130,7 +130,23 @@ export function ControlPanel({ status }: { status: "connecting" | "open" | "clos
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs text-muted-foreground">Stake ($)</Label>
+            <Label className="text-xs text-muted-foreground">Risk per trade (%)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={10}
+              step={0.1}
+              value={+(riskPct * 100).toFixed(2)}
+              onChange={(e) => setRiskPct(Math.max(0, Number(e.target.value) || 0) / 100)}
+              className="text-tabular"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Auto stake: <span className="text-primary">${((paperBalance * riskPct) / Math.max(0.1, stopLossR)).toFixed(2)}</span>
+              {riskPct <= 0 && <> · using fixed ${stake.toFixed(2)}</>}
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Fallback stake ($)</Label>
             <Input
               type="number"
               min={0.35}
