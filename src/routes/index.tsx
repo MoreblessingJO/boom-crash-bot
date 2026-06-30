@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getDerivClient, type Tick } from "@/lib/deriv-client";
 import { SYMBOLS, getSymbol } from "@/lib/symbols";
 import {
@@ -9,7 +9,8 @@ import {
   type Signal,
   type SymbolState,
 } from "@/lib/strategy";
-import { useTrading, type Position } from "@/lib/trading-store";
+import { useTrading } from "@/lib/trading-store";
+import { useServerSync } from "@/lib/server-sync";
 import { TickChart } from "@/components/TickChart";
 import { PositionsPanel } from "@/components/PositionsPanel";
 import { ControlPanel } from "@/components/ControlPanel";
