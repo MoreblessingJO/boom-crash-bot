@@ -130,21 +130,6 @@ function Dashboard() {
     return out;
   }, [symState]);
 
-
-
-  // Spike epoch markers for selected symbol chart
-  const spikeEpochs = useMemo(() => {
-    const out: number[] = [];
-    const ts = symState.ticks;
-    for (let i = 1; i < ts.length; i++) {
-      const change = Math.abs(ts[i].quote - ts[i - 1].quote);
-      if (symState.medianAbsChange > 0 && change > symState.medianAbsChange * 5) {
-        out.push(ts[i].epoch);
-      }
-    }
-    return out;
-  }, [symState]);
-
   return (
     <div className="min-h-screen p-4 lg:p-6">
       <header className="mb-5 flex items-center justify-between">
