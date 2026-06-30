@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as BrainRouteImport } from './routes/brain'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicTickEngineRouteImport } from './routes/api/public/tick-engine'
 
 const BrainRoute = BrainRouteImport.update({
   id: '/brain',
@@ -22,31 +23,40 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTickEngineRoute = ApiPublicTickEngineRouteImport.update({
+  id: '/api/public/tick-engine',
+  path: '/api/public/tick-engine',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/brain': typeof BrainRoute
+  '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/brain': typeof BrainRoute
+  '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/brain': typeof BrainRoute
+  '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/brain'
+  fullPaths: '/' | '/brain' | '/api/public/tick-engine'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/brain'
-  id: '__root__' | '/' | '/brain'
+  to: '/' | '/brain' | '/api/public/tick-engine'
+  id: '__root__' | '/' | '/brain' | '/api/public/tick-engine'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BrainRoute: typeof BrainRoute
+  ApiPublicTickEngineRoute: typeof ApiPublicTickEngineRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/tick-engine': {
+      id: '/api/public/tick-engine'
+      path: '/api/public/tick-engine'
+      fullPath: '/api/public/tick-engine'
+      preLoaderRoute: typeof ApiPublicTickEngineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BrainRoute: BrainRoute,
+  ApiPublicTickEngineRoute: ApiPublicTickEngineRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

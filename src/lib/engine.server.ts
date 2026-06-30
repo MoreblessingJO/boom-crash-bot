@@ -116,7 +116,7 @@ export async function runEngine(): Promise<EngineRunResult> {
         rsi: state.rsi,
         ema_fast: state.emaFast,
         ema_slow: state.emaSlow,
-        recent_ticks: ticks.slice(-60),
+        recent_ticks: ticks.slice(-60).map((t) => ({ epoch: t.epoch, quote: t.quote })) as unknown as never,
         updated_at: new Date().toISOString(),
       });
 
