@@ -83,6 +83,7 @@ export function useServerSync() {
         setState({
           mode: cfg.mode as "paper" | "signals" | "live",
           stake: n(cfg.stake, 1),
+          riskPct: n((cfg as { risk_pct?: number | string }).risk_pct, 0.01),
           takeProfitR: n(cfg.tp_r, 3),
           stopLossR: n(cfg.sl_r, 1),
           preSpikeExitRatio: n(cfg.pre_spike_ratio, 0.8),
