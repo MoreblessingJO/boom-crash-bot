@@ -120,6 +120,36 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
   );
 }
 
+function CloseButton({ id, symbol }: { id: string; symbol: string }) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={loading}
+      className="h-7 px-2 text-xs"
+      onClick={async () => {
+        setLoading(true);
+        try {
+          const res = await closePosition({ data: { id } });
+          if (res?.ok) {
+            const pnl = res.pnl ?? 0;
+            toast.success(`Closed ${symbol} · ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`);
+          } else {
+            toast.error(`Could not close ${symbol}`);
+          }
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Close failed");
+        } finally {
+          setLoading(false);
+        }
+      }}
+    >
+      {loading ? "…" : "Close"}
+    </Button>
+  );
+}
+
 function Stat({
   label,
   value,
