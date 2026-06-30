@@ -164,12 +164,23 @@ export async function runEngine(): Promise<EngineRunResult> {
           const unit = Math.max(state.medianAbsChange * 5, state.lastPrice * 0.0005);
           if (!isFinite(unit) || unit <= 0) continue;
 
+          // Auto-size stake so 1R loss = risk_pct of paper balance.
+          // stake is the $/R multiplier — a loss of sl_r R = stake * sl_r dollars.
+          // So stake = (balance * risk_pct) / sl_r keeps max loss at risk_pct of equity.
+          const riskPct = Number(settings.risk_pct ?? 0);
+          const balance = Number(settings.paper_balance ?? 0);
+          const slR = Number(settings.sl_r) || 1;
+          const autoStake = riskPct > 0 && balance > 0
+            ? (balance * riskPct) / slR
+            : settings.stake;
+          const stake = Math.max(0.35, Number(autoStake.toFixed(2)));
+
           await supabaseAdmin.from("positions").insert({
             symbol: sym.code,
             side: sig.direction,
             regime: sig.regime,
             entry_price: state.lastPrice,
-            stake: settings.stake,
+            stake,
             tp_r: settings.tp_r,
             sl_r: settings.sl_r,
             unit,
