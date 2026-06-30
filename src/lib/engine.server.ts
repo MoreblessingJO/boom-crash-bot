@@ -202,20 +202,28 @@ async function maybeClosePosition(
   const tpHit = r >= pos.tp_r;
   const slHit = r <= -pos.sl_r;
 
-  // Pre-spike exit for counter-spike trades: if we're close to expected spike
+  // Pre-spike exit: only lock in if we already have a meaningful profit
+  // (>= 1R). Bailing at +0.1R kills RR — a single SL gap wipes 10 such wins.
+  const MIN_PRE_SPIKE_R = 1.0;
   const elapsedTicks = Math.max(0, state.ticks.length > 0 ? (state.lastEpoch - pos.opened_epoch) : 0);
-  // Approximate ticks-since-open from epoch deltas: synthetic indices tick ~1s
   const heldTicks = Math.max(0, Math.round(elapsedTicks));
   const preSpikeExit = pos.regime === "spike-anticipation"
     && (state.ticksSinceSpike / avgSpikeTicks) >= settings.pre_spike_ratio
-    && r > -pos.sl_r * 0.5; // don't pre-exit a losing trade right at SL
+    && r >= MIN_PRE_SPIKE_R;
 
   // Time stop
   const timeStop = heldTicks >= avgSpikeTicks * settings.max_hold_ratio;
 
   if (!(tpHit || slHit || preSpikeExit || timeStop)) return null;
 
-  const realized_r = r;
+  // Cap realized risk at the declared stop. Boom/Crash spikes can gap
+  // multiple R between 30-s engine ticks; without this cap the position
+  // realizes -2R+ even though the user only risked 1R. We honor the
+  // declared SL as a hard ceiling (paper book; live would need a broker
+  // stop order — same fix on that side).
+  let realized_r = r;
+  if (slHit && realized_r < -pos.sl_r) realized_r = -pos.sl_r;
+  if (tpHit && realized_r > pos.tp_r) realized_r = pos.tp_r;
   const pnl = realized_r * pos.stake;
   const exit_reason = tpHit ? "TP" : slHit ? "SL" : preSpikeExit ? "PRE_SPIKE" : "TIME_STOP";
 
