@@ -99,7 +99,8 @@ export async function runEngine(): Promise<EngineRunResult> {
 
   for (const sym of symbolsToScan) {
     try {
-      const ticks = await fetchTicksHistory(sym.code, 200);
+      const histCount = Math.min(5000, Math.max(300, Math.round(sym.avgSpikeTicks * 2.5)));
+      const ticks = await fetchTicksHistory(sym.code, histCount);
       if (ticks.length < 30) continue;
       result.symbols_scanned += 1;
 
