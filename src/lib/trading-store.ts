@@ -181,6 +181,8 @@ export const useTrading = create<State>()(
       setAutoTrade: (autoTrade) => set({ autoTrade }),
       stake: 10,
       setStake: (stake) => { set({ stake }); pushServer({ stake }); },
+      riskPct: 0.01,
+      setRiskPct: (riskPct) => { set({ riskPct }); pushServer({ risk_pct: riskPct }); },
       takeProfitR: 3,
       stopLossR: 1,
       setRisk: (takeProfitR, stopLossR) => {
