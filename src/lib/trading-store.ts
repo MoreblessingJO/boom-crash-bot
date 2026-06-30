@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Direction, Regime, Signal } from "./strategy";
+import { updateSettings, resetLearner, resetPaperBalance, flattenAll } from "./agent.functions";
+
+// Fire-and-forget mirror to the server-side settings row. Local state
+// updates immediately for snappy UI; server cron reads the new values
+// on its next tick.
+const pushServer = (patch: Record<string, unknown>) => {
+  void updateSettings({ data: patch as never }).catch(() => {});
+};
 
 export type Mode = "paper" | "signals" | "live";
 
