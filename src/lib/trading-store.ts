@@ -124,6 +124,8 @@ interface State {
   setAutoTrade: (b: boolean) => void;
   stake: number;
   setStake: (n: number) => void;
+  riskPct: number;
+  setRiskPct: (n: number) => void;
 
   takeProfitR: number;
   stopLossR: number;
