@@ -162,6 +162,8 @@ interface State {
   // routes (Brain monitor) can render live unrealized risk in real time.
   lastPrices: Record<string, { quote: number; epoch: number }>;
   setLastPrice: (symbol: string, quote: number, epoch: number) => void;
+
+  flatten: () => void;
 }
 
 export const useTrading = create<State>()(
