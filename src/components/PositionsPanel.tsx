@@ -94,7 +94,7 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
                 <div className="col-span-1 text-xs uppercase text-muted-foreground">
                   {p.mode}
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1">
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] uppercase",
@@ -105,6 +105,11 @@ export function PositionsPanel({ livePrices }: { livePrices: Record<string, numb
                   >
                     {p.status}
                   </span>
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  {p.status === "open" && (
+                    <CloseButton id={p.id} symbol={p.symbol} />
+                  )}
                 </div>
               </div>
             );
