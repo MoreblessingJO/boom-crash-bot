@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { useTrading } from "@/lib/trading-store";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { closePosition } from "@/lib/agent.functions";
+import { toast } from "sonner";
 
 export function PositionsPanel({ livePrices }: { livePrices: Record<string, number> }) {
   const positions = useTrading((s) => s.positions);
