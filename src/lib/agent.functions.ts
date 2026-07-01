@@ -67,8 +67,9 @@ export const flattenAll = createServerFn({ method: "POST" }).handler(async () =>
     const cur = pxMap.get(p.symbol);
     const exitPrice = Number(cur?.last_price ?? p.entry_price);
     const dir = p.side === "BUY" ? 1 : -1;
-    const realized_r = p.unit > 0 ? ((exitPrice - Number(p.entry_price)) * dir) / Number(p.unit) : 0;
-    const pnl = realized_r * Number(p.stake);
+    const moved = (exitPrice - Number(p.entry_price)) * dir;
+    const realized_r = p.unit > 0 ? moved / Number(p.unit) : 0;
+    const pnl = moved * Number(p.stake);
     await supabaseAdmin.from("positions").update({
       status: "closed",
       exit_price: exitPrice,
