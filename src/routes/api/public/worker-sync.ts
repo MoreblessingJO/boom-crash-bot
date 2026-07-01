@@ -40,7 +40,7 @@ function verifySig(rawBody: string, header: string | null, secret: string): bool
 async function runOp(op: Op) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   if (!ALLOWED_TABLES.has(op.table)) throw new Error(`table not allowed: ${op.table}`);
-  let q: any = supabaseAdmin.from(op.table);
+  let q: any = (supabaseAdmin as any).from(op.table);
 
   switch (op.action) {
     case "select":
