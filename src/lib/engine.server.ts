@@ -228,15 +228,13 @@ async function maybeClosePosition(
 
   if (!(tpHit || slHit || preSpikeExit || timeStop)) return null;
 
-  // Cap realized risk at the declared stop. Boom/Crash spikes can gap
-  // multiple R between 30-s engine ticks; without this cap the position
-  // realizes -2R+ even though the user only risked 1R. We honor the
-  // declared SL as a hard ceiling (paper book; live would need a broker
-  // stop order — same fix on that side).
-  let realized_r = r;
-  if (slHit && realized_r < -pos.sl_r) realized_r = -pos.sl_r;
-  if (tpHit && realized_r > pos.tp_r) realized_r = pos.tp_r;
-  const pnl = realized_r * pos.stake;
+  // Honor declared SL as a hard downside ceiling (Boom/Crash can gap
+  // multiple R between engine ticks). Upside is UNCAPPED — if price
+  // gapped past TP, realize the actual gain. Previously we capped at
+  // tp_r*stake which made every winner look "hardcoded" at ~$20.
+  const cappedMoved = Math.max(moved, -pos.sl_r * pos.unit);
+  const pnl = cappedMoved * pos.stake;
+  const realized_r = pos.unit > 0 ? cappedMoved / pos.unit : 0;
   const exit_reason = tpHit ? "TP" : slHit ? "SL" : preSpikeExit ? "PRE_SPIKE" : "TIME_STOP";
 
   await supabaseAdmin.from("positions").update({

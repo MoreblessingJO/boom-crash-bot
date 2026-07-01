@@ -201,10 +201,11 @@ export class Engine {
 
     if (!(tpHit || slHit || preSpikeExit || timeStop)) return null;
 
-    let realized_r = r;
-    if (slHit && realized_r < -pos.sl_r) realized_r = -pos.sl_r;
-    if (tpHit && realized_r > pos.tp_r) realized_r = pos.tp_r;
-    const pnl = realized_r * pos.stake;
+    // Honor SL as hard downside ceiling; upside UNCAPPED so winners
+    // that gap past TP realize the actual gain (no more $20 ceiling).
+    const cappedMoved = Math.max(moved, -pos.sl_r * pos.unit);
+    const pnl = cappedMoved * pos.stake;
+    const realized_r = pos.unit > 0 ? cappedMoved / pos.unit : 0;
     const exit_reason = tpHit ? "TP" : slHit ? "SL" : preSpikeExit ? "PRE_SPIKE" : "TIME_STOP";
 
     await db().from("positions").update({
