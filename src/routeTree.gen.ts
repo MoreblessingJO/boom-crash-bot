@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as BrainRouteImport } from './routes/brain'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicWorkerSyncRouteImport } from './routes/api/public/worker-sync'
 import { Route as ApiPublicTickEngineRouteImport } from './routes/api/public/tick-engine'
 
 const BrainRoute = BrainRouteImport.update({
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWorkerSyncRoute = ApiPublicWorkerSyncRouteImport.update({
+  id: '/api/public/worker-sync',
+  path: '/api/public/worker-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTickEngineRoute = ApiPublicTickEngineRouteImport.update({
   id: '/api/public/tick-engine',
   path: '/api/public/tick-engine',
@@ -33,30 +39,43 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/brain': typeof BrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
+  '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/brain': typeof BrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
+  '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/brain': typeof BrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
+  '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/brain' | '/api/public/tick-engine'
+  fullPaths:
+    | '/'
+    | '/brain'
+    | '/api/public/tick-engine'
+    | '/api/public/worker-sync'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/brain' | '/api/public/tick-engine'
-  id: '__root__' | '/' | '/brain' | '/api/public/tick-engine'
+  to: '/' | '/brain' | '/api/public/tick-engine' | '/api/public/worker-sync'
+  id:
+    | '__root__'
+    | '/'
+    | '/brain'
+    | '/api/public/tick-engine'
+    | '/api/public/worker-sync'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BrainRoute: typeof BrainRoute
   ApiPublicTickEngineRoute: typeof ApiPublicTickEngineRoute
+  ApiPublicWorkerSyncRoute: typeof ApiPublicWorkerSyncRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,6 +94,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/worker-sync': {
+      id: '/api/public/worker-sync'
+      path: '/api/public/worker-sync'
+      fullPath: '/api/public/worker-sync'
+      preLoaderRoute: typeof ApiPublicWorkerSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/tick-engine': {
       id: '/api/public/tick-engine'
       path: '/api/public/tick-engine'
@@ -89,6 +115,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BrainRoute: BrainRoute,
   ApiPublicTickEngineRoute: ApiPublicTickEngineRoute,
+  ApiPublicWorkerSyncRoute: ApiPublicWorkerSyncRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
