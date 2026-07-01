@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Nexxtrade" },
+      { name: "description", content: "Trade smarter with AI" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Nexxtrade" },
+      { property: "og:description", content: "Trade smarter with AI" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Nexxtrade" },
+      { name: "twitter:description", content: "Trade smarter with AI" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c1cdb209-2414-49ef-8701-365ebdf198a3/id-preview-62a3694f--21180bdb-f66a-4589-836b-52ca425a0cd6.lovable.app-1782873817813.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c1cdb209-2414-49ef-8701-365ebdf198a3/id-preview-62a3694f--21180bdb-f66a-4589-836b-52ca425a0cd6.lovable.app-1782873817813.png" },
     ],
     links: [
       {
