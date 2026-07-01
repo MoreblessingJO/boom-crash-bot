@@ -78,7 +78,8 @@ export class Engine {
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
     const { data } = await db().from("positions").select("pnl")
       .eq("status", "closed").gte("closed_at", since.toISOString());
-    this.dailyPnl = (data ?? []).reduce((s, p: { pnl: number | null }) => s + Number(p.pnl ?? 0), 0);
+    const rows = (data ?? []) as Array<{ pnl: number | null }>;
+    this.dailyPnl = rows.reduce((s, p) => s + Number(p.pnl ?? 0), 0);
   }
 
   async bootstrap() {
