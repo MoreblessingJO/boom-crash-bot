@@ -258,7 +258,7 @@ export class Engine {
     const clientReqId = randomUUID();
 
     // 1) Insert pending row (idempotency key via unique client_req_id)
-    const { data: pending, error: insErr } = await db().from("positions").insert({
+    const { data: pendingRaw, error: insErr } = await db().from("positions").insert({
       symbol: symCode, side: sig.direction, regime: sig.regime,
       entry_price: state.lastPrice, stake,
       tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
@@ -266,10 +266,11 @@ export class Engine {
       confidence: sig.confidence, opened_epoch: state.lastEpoch,
       client_req_id: clientReqId,
     }).select("*").maybeSingle();
-    if (insErr || !pending) {
+    if (insErr || !pendingRaw) {
       console.warn(`[engine] pending insert failed`, insErr?.message);
       return;
     }
+    const pending = pendingRaw as Position;
 
     // 2) Send Deriv buy
     try {
