@@ -16,6 +16,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiPublicWorkerSyncRouteImport } from './routes/api/public/worker-sync'
+import { Route as ApiPublicWorkerDerivTokenRouteImport } from './routes/api/public/worker-deriv-token'
 import { Route as ApiPublicTickEngineRouteImport } from './routes/api/public/tick-engine'
 import { Route as AuthenticatedAdminBrainRouteImport } from './routes/_authenticated/admin/brain'
 import { Route as ApiPublicDerivCallbackRouteImport } from './routes/api/public/deriv/callback'
@@ -54,6 +55,12 @@ const ApiPublicWorkerSyncRoute = ApiPublicWorkerSyncRouteImport.update({
   path: '/api/public/worker-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWorkerDerivTokenRoute =
+  ApiPublicWorkerDerivTokenRouteImport.update({
+    id: '/api/public/worker-deriv-token',
+    path: '/api/public/worker-deriv-token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTickEngineRoute = ApiPublicTickEngineRouteImport.update({
   id: '/api/public/tick-engine',
   path: '/api/public/tick-engine',
@@ -77,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
+  '/api/public/worker-deriv-token': typeof ApiPublicWorkerDerivTokenRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/deriv/callback': typeof ApiPublicDerivCallbackRoute
@@ -87,6 +95,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
+  '/api/public/worker-deriv-token': typeof ApiPublicWorkerDerivTokenRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/deriv/callback': typeof ApiPublicDerivCallbackRoute
@@ -100,6 +109,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
+  '/api/public/worker-deriv-token': typeof ApiPublicWorkerDerivTokenRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/deriv/callback': typeof ApiPublicDerivCallbackRoute
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/admin/brain'
     | '/api/public/tick-engine'
+    | '/api/public/worker-deriv-token'
     | '/api/public/worker-sync'
     | '/admin/'
     | '/api/public/deriv/callback'
@@ -123,6 +134,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/admin/brain'
     | '/api/public/tick-engine'
+    | '/api/public/worker-deriv-token'
     | '/api/public/worker-sync'
     | '/admin'
     | '/api/public/deriv/callback'
@@ -135,6 +147,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/admin/brain'
     | '/api/public/tick-engine'
+    | '/api/public/worker-deriv-token'
     | '/api/public/worker-sync'
     | '/_authenticated/admin/'
     | '/api/public/deriv/callback'
@@ -145,6 +158,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicTickEngineRoute: typeof ApiPublicTickEngineRoute
+  ApiPublicWorkerDerivTokenRoute: typeof ApiPublicWorkerDerivTokenRoute
   ApiPublicWorkerSyncRoute: typeof ApiPublicWorkerSyncRoute
   ApiPublicDerivCallbackRoute: typeof ApiPublicDerivCallbackRoute
 }
@@ -198,6 +212,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/worker-sync'
       fullPath: '/api/public/worker-sync'
       preLoaderRoute: typeof ApiPublicWorkerSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/worker-deriv-token': {
+      id: '/api/public/worker-deriv-token'
+      path: '/api/public/worker-deriv-token'
+      fullPath: '/api/public/worker-deriv-token'
+      preLoaderRoute: typeof ApiPublicWorkerDerivTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/tick-engine': {
@@ -258,6 +279,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicTickEngineRoute: ApiPublicTickEngineRoute,
+  ApiPublicWorkerDerivTokenRoute: ApiPublicWorkerDerivTokenRoute,
   ApiPublicWorkerSyncRoute: ApiPublicWorkerSyncRoute,
   ApiPublicDerivCallbackRoute: ApiPublicDerivCallbackRoute,
 }

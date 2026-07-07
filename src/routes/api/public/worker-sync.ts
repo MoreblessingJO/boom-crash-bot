@@ -22,6 +22,7 @@ const ALLOWED_TABLES = new Set([
   "symbol_state",
   "signals",
   "engine_heartbeat",
+  "live_trade_audit",
 ]);
 
 function verifySig(rawBody: string, header: string | null, secret: string): boolean {

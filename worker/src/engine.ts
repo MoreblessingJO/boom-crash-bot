@@ -1,10 +1,14 @@
-// Per-tick engine. Maintains in-memory tick buffers and reacts in real time.
+// Per-tick engine. Paper mode: simulate locally. Live mode: place real
+// Deriv contracts with idempotency, guardrails, and reconciliation.
+import { randomUUID } from "crypto";
 import { db } from "./db.js";
 import { SYMBOLS, type SymbolDef } from "./symbols.js";
 import {
   computeState, localSignal, bucketKey, confidenceFloor, isBucketDisabled,
   type ComputedState, type Direction, type RawTick,
 } from "./strategy.js";
+import type { DerivAuthWS } from "./deriv-auth-ws.js";
+import { checkGuardrails, auditEvent, type Guardrails } from "./guardrails.js";
 
 const EWMA_ALPHA = 0.15;
 const MIN_PRE_SPIKE_R = 1.0;
@@ -12,12 +16,13 @@ const STATE_WRITE_THROTTLE_MS = 1000;
 const SETTINGS_REFRESH_MS = 10_000;
 const BUCKETS_REFRESH_MS = 10_000;
 const DAILY_PNL_REFRESH_MS = 30_000;
+const BUY_COOLDOWN_MS = 3000;
 
 function warnAsync(label: string, promise: PromiseLike<unknown>) {
   promise.then(undefined, (e) => console.warn(`[engine] ${label}`, e instanceof Error ? e.message : e));
 }
 
-interface Settings {
+interface Settings extends Guardrails {
   mode: string; stake: number; tp_r: number; sl_r: number;
   pre_spike_ratio: number; late_entry_ratio: number; max_hold_ratio: number;
   max_daily_loss: number; kill_switch: boolean; learning_enabled: boolean;
@@ -28,6 +33,8 @@ interface Position {
   id: string; symbol: string; side: Direction; regime: string;
   entry_price: number; stake: number; tp_r: number; sl_r: number;
   unit: number; opened_epoch: number;
+  deriv_contract_id?: string | null;
+  status?: string;
 }
 interface Bucket {
   bucket_key: string; symbol: string; regime: string; direction: string;
@@ -38,6 +45,7 @@ export class Engine {
   private buffers = new Map<string, RawTick[]>();
   private bufferLimits = new Map<string, number>();
   private openBySym = new Map<string, Position>();
+  private lastBuyAt = new Map<string, number>();
   private settings: Settings | null = null;
   private buckets = new Map<string, Bucket>();
   private dailyPnl = 0;
@@ -46,8 +54,10 @@ export class Engine {
   private lastBucketsLoad = 0;
   private lastDailyLoad = 0;
   private symbolsConnected = 0;
+  private authWs: DerivAuthWS | null = null;
 
   setConnectedCount(n: number) { this.symbolsConnected = n; }
+  setAuthWs(ws: DerivAuthWS | null) { this.authWs = ws; }
 
   async hydrateBuffer(sym: SymbolDef, ticks: RawTick[]) {
     const limit = Math.min(5000, Math.max(300, sym.avgSpikeTicks * 3));
@@ -93,7 +103,6 @@ export class Engine {
     await this.loadOpenPositions();
   }
 
-  // Called on EVERY live tick — must stay cheap.
   async onTick(symCode: string, tick: RawTick) {
     const sym = SYMBOLS.find((s) => s.code === symCode);
     if (!sym) return;
@@ -103,7 +112,6 @@ export class Engine {
     const limit = this.bufferLimits.get(symCode) ?? 1000;
     if (buf.length > limit) buf.splice(0, buf.length - limit);
 
-    // Cheap periodic refreshes
     warnAsync("refresh settings failed", this.refreshSettings());
     warnAsync("refresh buckets failed", this.refreshBuckets());
     warnAsync("refresh daily pnl failed", this.refreshDailyPnl());
@@ -115,7 +123,6 @@ export class Engine {
 
     const state = computeState(buf);
 
-    // Throttled DB write of symbol_state so the UI reflects live data
     const now = Date.now();
     if ((this.lastStateWrite.get(symCode) ?? 0) + STATE_WRITE_THROTTLE_MS < now) {
       this.lastStateWrite.set(symCode, now);
@@ -141,7 +148,6 @@ export class Engine {
         if (this.settings.learning_enabled) {
           await this.updateBucket(open.symbol, open.regime, open.side, closed.realized_r);
         }
-        // Force daily P&L refresh after a close
         this.lastDailyLoad = 0;
       }
       return;
@@ -149,6 +155,10 @@ export class Engine {
 
     // 2) Consider new entry
     if (this.settings.mode === "signals") return;
+
+    // Cool-down: never buy the same symbol within BUY_COOLDOWN_MS
+    if ((this.lastBuyAt.get(symCode) ?? 0) + BUY_COOLDOWN_MS > now) return;
+
     const sig = localSignal(sym, state);
     if (!sig.direction || sig.regime === "wait") return;
 
@@ -171,19 +181,41 @@ export class Engine {
     const autoStake = riskPct > 0 && balance > 0
       ? (balance * riskPct) / slR
       : this.settings.stake;
-    const stake = Math.max(0.35, Number(autoStake.toFixed(2)));
+    let stake = Math.max(0.35, Number(autoStake.toFixed(2)));
 
-    const { data: inserted, error } = await db().from("positions").insert({
-      symbol: symCode, side: sig.direction, regime: sig.regime,
-      entry_price: state.lastPrice, stake,
-      tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
-      unit, status: "open", reason: sig.reason,
-      confidence: sig.confidence, opened_epoch: state.lastEpoch,
-    }).select("*").maybeSingle();
-    if (error) { console.warn(`[engine] insert position failed`, error.message); return; }
-    if (inserted) {
-      this.openBySym.set(symCode, inserted as Position);
-      console.log(`[engine] OPEN ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} regime=${sig.regime} conf=${sig.confidence.toFixed(2)}`);
+    // Guardrails
+    const openCount = this.openBySym.size;
+    const equity = this.authWs?.getAuthorized()?.balance ?? null;
+    const guards: Guardrails = {
+      halt_engine: !!this.settings.halt_engine,
+      is_live: !!this.settings.is_live,
+      daily_loss_limit: Number(this.settings.daily_loss_limit ?? 0),
+      max_open_positions: Number(this.settings.max_open_positions ?? 0),
+      max_stake_per_trade: Number(this.settings.max_stake_per_trade ?? 0),
+      max_stake_pct_equity: Number(this.settings.max_stake_pct_equity ?? 0),
+    };
+    const snapshot = { symbol: symCode, guards, dailyPnl: this.dailyPnl, equity };
+    const gate = await checkGuardrails({
+      symbol: symCode,
+      proposedStake: stake,
+      equity,
+      openOrPendingCount: openCount,
+      dailyPnl: this.dailyPnl,
+      guards,
+      settingsSnapshot: snapshot,
+    });
+    if (!gate.ok) {
+      console.log(`[engine] BLOCK ${symCode} ${sig.direction}: ${gate.reason}`);
+      return;
+    }
+    stake = gate.stake;
+    this.lastBuyAt.set(symCode, now);
+
+    // Live vs paper branch
+    if (guards.is_live) {
+      await this.openLive(symCode, sig, state, stake, unit, snapshot);
+    } else {
+      await this.openPaper(symCode, sig, state, stake, unit);
     }
 
     warnAsync("signal write failed", db().from("signals").insert({
@@ -192,7 +224,128 @@ export class Engine {
     }));
   }
 
+  private async openPaper(
+    symCode: string, sig: ReturnType<typeof localSignal>, state: ComputedState,
+    stake: number, unit: number,
+  ) {
+    if (!sig.direction || !this.settings) return;
+    const { data: inserted, error } = await db().from("positions").insert({
+      symbol: symCode, side: sig.direction, regime: sig.regime,
+      entry_price: state.lastPrice, stake,
+      tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
+      unit, status: "open", reason: sig.reason,
+      confidence: sig.confidence, opened_epoch: state.lastEpoch,
+      client_req_id: randomUUID(),
+    }).select("*").maybeSingle();
+    if (error) { console.warn(`[engine] paper insert failed`, error.message); return; }
+    if (inserted) {
+      this.openBySym.set(symCode, inserted as Position);
+      console.log(`[engine] PAPER OPEN ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} conf=${sig.confidence.toFixed(2)}`);
+    }
+  }
+
+  private async openLive(
+    symCode: string, sig: ReturnType<typeof localSignal>, state: ComputedState,
+    stake: number, unit: number, snapshot: unknown,
+  ) {
+    if (!sig.direction || !this.settings) return;
+    if (!this.authWs || !this.authWs.isReady()) {
+      console.warn(`[engine] LIVE requested but auth-ws not ready — skipping`);
+      await auditEvent("LIVE_NO_AUTH", { symbol: symCode, stake, settings_snapshot: snapshot });
+      return;
+    }
+
+    const clientReqId = randomUUID();
+
+    // 1) Insert pending row (idempotency key via unique client_req_id)
+    const { data: pendingRaw, error: insErr } = await db().from("positions").insert({
+      symbol: symCode, side: sig.direction, regime: sig.regime,
+      entry_price: state.lastPrice, stake,
+      tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
+      unit, status: "pending", reason: sig.reason,
+      confidence: sig.confidence, opened_epoch: state.lastEpoch,
+      client_req_id: clientReqId,
+    }).select("*").maybeSingle();
+    if (insErr || !pendingRaw) {
+      console.warn(`[engine] pending insert failed`, insErr?.message);
+      return;
+    }
+    const pending = pendingRaw as Position;
+
+    // 2) Send Deriv buy
+    try {
+      const buy = await this.authWs.buy(symCode, sig.direction, stake);
+      await db().from("positions").update({
+        status: "open",
+        deriv_contract_id: buy.contract_id,
+        entry_price: buy.buy_price,
+        opened_epoch: buy.start_time,
+      }).eq("id", pending.id);
+      const open: Position = {
+        ...(pending as Position),
+        status: "open",
+        entry_price: buy.buy_price,
+        opened_epoch: buy.start_time,
+        deriv_contract_id: buy.contract_id,
+      };
+      this.openBySym.set(symCode, open);
+      await auditEvent("LIVE_OPEN", {
+        position_id: pending.id, contract_id: buy.contract_id, symbol: symCode,
+        stake, entry: buy.buy_price, settings_snapshot: snapshot,
+      });
+      console.log(`[engine] LIVE OPEN ${symCode} ${sig.direction} contract=${buy.contract_id} price=${buy.buy_price}`);
+    } catch (e) {
+      const msg = (e as Error).message;
+      console.warn(`[engine] LIVE buy failed ${symCode}: ${msg}`);
+      // Try to adopt via portfolio in case buy actually went through
+      let adopted = false;
+      try {
+        const port = await this.authWs.portfolio();
+        // Best-effort: adopt most recent contract on this symbol whose buy_price ~= stake
+        const cand = port
+          .filter((c) => c.symbol === symCode)
+          .sort((a, b) => b.purchase_time - a.purchase_time)[0];
+        if (cand && Math.abs(cand.buy_price - stake) < 0.5 && cand.purchase_time * 1000 > Date.now() - 30_000) {
+          await db().from("positions").update({
+            status: "open",
+            deriv_contract_id: cand.contract_id,
+            entry_price: cand.buy_price,
+            opened_epoch: cand.purchase_time,
+          }).eq("id", pending.id);
+          this.openBySym.set(symCode, {
+            ...(pending as Position),
+            status: "open",
+            entry_price: cand.buy_price,
+            opened_epoch: cand.purchase_time,
+            deriv_contract_id: cand.contract_id,
+          });
+          adopted = true;
+          await auditEvent("LIVE_ADOPTED_AFTER_ERROR", {
+            position_id: pending.id, contract_id: cand.contract_id, symbol: symCode,
+            stake, entry: cand.buy_price, settings_snapshot: { error: msg, ...(snapshot as object) },
+          });
+          console.log(`[engine] LIVE adopted ${symCode} contract=${cand.contract_id} after buy error`);
+        }
+      } catch { /* noop */ }
+      if (!adopted) {
+        await db().from("positions").update({
+          status: "failed", exit_reason: `BUY_ERROR: ${msg.slice(0, 100)}`,
+          closed_at: new Date().toISOString(),
+        }).eq("id", pending.id);
+        await auditEvent("LIVE_BUY_FAILED", {
+          position_id: pending.id, symbol: symCode, stake,
+          settings_snapshot: { error: msg, ...(snapshot as object) },
+        });
+      }
+    }
+  }
+
   private async maybeClose(pos: Position, state: ComputedState, avgSpikeTicks: number) {
+    // In live mode, only close via reconciliation (Deriv-managed contracts).
+    // Local price-based exit is paper-only.
+    if (this.settings?.is_live && pos.deriv_contract_id) {
+      return null;
+    }
     const dir = pos.side === "BUY" ? 1 : -1;
     const moved = (state.lastPrice - pos.entry_price) * dir;
     const r = moved / pos.unit;
@@ -206,8 +359,6 @@ export class Engine {
 
     if (!(tpHit || slHit || preSpikeExit || timeStop)) return null;
 
-    // Honor SL as hard downside ceiling; upside UNCAPPED so winners
-    // that gap past TP realize the actual gain (no more $20 ceiling).
     const cappedMoved = Math.max(moved, -pos.sl_r * pos.unit);
     const pnl = cappedMoved * pos.stake;
     const realized_r = pos.unit > 0 ? cappedMoved / pos.unit : 0;

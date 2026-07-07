@@ -17,6 +17,9 @@ import { ControlPanel } from "@/components/ControlPanel";
 import { SymbolGrid } from "@/components/SymbolGrid";
 import { LearningPanel } from "@/components/LearningPanel";
 import { EngineStatus } from "@/components/EngineStatus";
+import { GoLiveToggle } from "@/components/admin/GoLiveToggle";
+import { GuardrailSettings } from "@/components/admin/GuardrailSettings";
+import { LiveAuditTable } from "@/components/admin/LiveAuditTable";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -209,6 +212,18 @@ function Dashboard() {
         </div>
 
         <aside className="space-y-4">
+          <div className="rounded-xl border border-crash/40 bg-card p-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-crash">
+              Live Trading
+            </h3>
+            <GoLiveToggle />
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Guardrails
+            </h3>
+            <GuardrailSettings />
+          </div>
           <div className="rounded-xl border border-border bg-card p-4">
             <ControlPanel status={status} />
           </div>
@@ -219,6 +234,13 @@ function Dashboard() {
             <LearningPanel />
           </div>
         </aside>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Live trade audit (last 100)
+        </h3>
+        <LiveAuditTable />
       </div>
 
       <footer className="mt-6 text-center text-[11px] text-muted-foreground">
