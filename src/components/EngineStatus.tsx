@@ -34,9 +34,11 @@ export function EngineStatus() {
         },
       )
       .subscribe();
+    const poll = setInterval(load, 5000);
     const tick = setInterval(() => setNow(Date.now()), 2000);
     return () => {
       mounted = false;
+      clearInterval(poll);
       clearInterval(tick);
       supabase.removeChannel(ch);
     };
