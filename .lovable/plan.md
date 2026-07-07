@@ -1,107 +1,125 @@
-# Pre-Live-Funds Hardening Plan
 
-Delivered in the recommended order: **1 → 3 → 4 → 2 → 5 → 6 → 7**. Each phase is independently shippable and testable on paper mode before moving to the next. Nothing here flips real trading on — that stays behind a manual `is_live` toggle you control (Phase 5).
+# Worker Phases 2–5 — Pre-Live Hardening
 
----
+## Goal
 
-## Phase 1 — Deriv OAuth (per-user real-account tokens)
+Make the trading engine safe enough to trust with real Deriv funds. Today the worker is **paper-only**: no Deriv account is attached, orders are simulated as DB rows, and no server-side guardrails exist beyond the existing `kill_switch` + `max_daily_loss`.
 
-**Goal:** replace the single shared demo token with one authorized token per user, stored encrypted, scoped to `trade` + `trading_information` + `read`.
+After this plan:
+- The worker can place **real** Deriv contracts through one designated "engine account" (the owner's Deriv connection).
+- Every buy is **idempotent** — network blips can't double-fill.
+- A **reconciliation loop** keeps local DB in sync with Deriv's actual portfolio.
+- **Server-enforced guardrails** check every trade against `halt_engine`, `daily_loss_limit`, `max_open_positions`, `max_stake_per_trade`, `max_stake_pct_equity`.
+- A hard **paper vs live** switch controlled from the admin panel.
 
-- New table `user_deriv_accounts` (user_id, deriv_loginid, encrypted_token, account_type `demo|real`, currency, scopes, connected_at). RLS: owner-only, no `anon` grant.
-- Token encryption using `DERIV_TOKEN_ENC_KEY` (32-byte, stored as a runtime secret; AES-256-GCM in a server function).
-- New public route `/api/public/deriv/callback` handles the OAuth redirect from Deriv, exchanges the `token1..tokenN` params, persists encrypted tokens for the signed-in user.
-- New UI: "Connect Deriv" button on the dashboard (in an `_authenticated` route) → opens Deriv OAuth in a popup → on return shows connected account, balance, currency, "Disconnect" action.
-- Worker: on boot and on settings-refresh, load the active user's decrypted token from `user_deriv_accounts` (via a signed request using `WORKER_SHARED_SECRET`) instead of the hard-coded token in `settings`.
+## Scope decision: one engine account, not per-user
 
-**Needs from you:** Deriv OAuth `app_id` (register the app at https://app.deriv.com/account/api-token → "Register application"; redirect URL will be `https://sparky-trader.lovable.app/api/public/deriv/callback`).
+Multi-user live trading (each signed-in user trades from their own Deriv account) requires **one Deriv WS session per user**, per-user open-position tracking, per-user P&L, per-user guardrails. That's a substantially bigger build.
 
----
+This plan ships **single-account live** first: the engine trades from the owner's connected Deriv account. Other users can still connect their Deriv account and view their own state on `/dashboard`, but the automated engine only trades the owner's account. Multi-user auto-trading is a later phase.
 
-## Phase 3 — Idempotent order placement
+## What Changes
 
-**Goal:** eliminate any possibility of double-buys on restart or race.
+### 1. New DB action: fetch owner Deriv token (server side)
 
-- Add `client_req_id UUID UNIQUE` column to `positions`. Generated before the Deriv `buy` call.
-- Worker wraps every buy in: `INSERT positions(client_req_id, status='pending', …)` → `deriv.buy({ req_id })` → `UPDATE positions SET contract_id=…, status='open'`. Unique constraint blocks duplicates.
-- On Deriv `buy` timeout or worker crash mid-call: on next tick, query Deriv `portfolio` for that `req_id`/contract before retrying.
-- Add `symbol_state.last_buy_at` cool-down (config-driven) — reject buys under N seconds since last, defense in depth.
+The worker cannot access the `DERIV_TOKEN_ENC_KEY` (secret lives in Lovable, not on the droplet). Add a **new signed endpoint** on the app side, `/api/public/worker-deriv-token`, that:
+- Verifies HMAC with `WORKER_SHARED_SECRET` (same pattern as `worker-sync`).
+- Loads the owner's active `user_deriv_accounts` row (looked up by joining `user_roles` on `role='owner'`), decrypts the token server-side, returns `{ token, loginid, account_type }`.
+- Rate-limited to one call per 60s per source (uses `alert_log` table as cheap TTL store).
 
----
+Worker calls this on boot and every 30 min to refresh.
 
-## Phase 4 — Reconciliation loop on worker boot + periodic
+### 2. Second Deriv WS (authenticated) for orders
 
-**Goal:** worker's `positions` table always matches Deriv reality.
+Current `deriv-ws.ts` is anonymous (ticks only). Add `deriv-auth-ws.ts`:
+- Separate WS connection, `authorize` on connect with the owner's token.
+- `buy`, `sell`, `portfolio`, `proposal_open_contract` request/response helpers with `req_id` correlation.
+- Reconnect + re-authorize on drop.
+- **Never** starts if `settings.is_live=false` or the token fetch fails.
 
-- On boot: call Deriv `portfolio` + `profit_table` (last 24h) → for every open contract, ensure a matching `positions` row; for every DB "open" row not in Deriv portfolio, look it up via `proposal_open_contract` and mark closed with actual P&L.
-- Every 60s while running: repeat lightweight reconciliation (portfolio only) — detect out-of-band closes (SL/TP hit, expiry, manual close in Deriv app).
-- Emit `[reconcile]` log lines with counts (opened / closed / drift-fixed).
+Ticks WS stays as-is — pricing feed doesn't need auth.
 
----
+### 3. Idempotent buys
 
-## Phase 2 — Server-enforced guardrails + kill switch
+In `engine.ts` `onTick` before insert:
+- Generate `client_req_id = crypto.randomUUID()`.
+- Insert the position row with `status='pending'` and the `client_req_id` (unique index already exists).
+- Send Deriv `buy` with that req_id in a local map.
+- On buy response: update position → `status='open'`, `deriv_contract_id`, `entry_price` from Deriv's fill price.
+- On buy timeout (10s): call Deriv `portfolio`, look for a contract matching our metadata; if found, adopt it; if not, mark position `status='failed'`.
+- On buy error: mark `status='failed'`, log to `live_trade_audit`.
 
-**Goal:** limits are enforced in `engine.ts` before every buy — UI is only a mirror.
+### 4. Reconciliation loop
 
-- New `settings` columns: `halt_engine boolean`, `daily_loss_limit numeric`, `max_open_positions int`, `max_stake_per_trade numeric`, `max_stake_pct_equity numeric`.
-- New view/function `v_today_pnl(user_id)` — sum of closed P&L since UTC midnight.
-- Before every buy, engine checks (in order): halt_engine → daily P&L vs limit → open position count → stake vs max → stake vs % of live equity. Fail-closed: on DB read error, refuse the trade.
-- Dashboard adds a big red "HALT ENGINE" toggle (writes `settings.halt_engine`); worker reads it every tick.
+New `reconciler.ts`, runs every 60s and once on boot:
+- Fetch `portfolio` from Deriv.
+- For each local `positions.status='open'` with a `deriv_contract_id`: check it's still in the portfolio. If gone, fetch `proposal_open_contract` to get final `sell_price` / `profit`, mark `closed` with `exit_reason='RECONCILED'`.
+- For each Deriv portfolio contract with no matching local row (orphan): insert as `status='open'` with `exit_reason='ADOPTED'` audit note so it appears in the UI and gets managed.
 
----
+### 5. Server-enforced guardrails
 
-## Phase 5 — Paper vs. Live mode split + audit log
+New `guardrails.ts`. Before every buy attempt, in order:
+1. `settings.halt_engine === true` → block.
+2. `settings.is_live === false` → paper branch (see §6).
+3. `today_pnl()` ≤ `-daily_loss_limit` → block + halt engine + audit.
+4. Count of `status IN ('open','pending')` positions ≥ `max_open_positions` → block.
+5. `stake > max_stake_per_trade` → clamp down (log audit).
+6. `stake > equity * max_stake_pct_equity` → clamp down (equity = latest `balance` from Deriv authorize response).
 
-**Goal:** unambiguous, hard-to-flip-by-accident live switch with an audit trail.
+Every block writes one row to `live_trade_audit` with `action='BLOCKED'`, `reason`, and the settings snapshot.
 
-- New `settings.is_live boolean default false`. When false, worker uses Deriv **demo** account (or simulates fills locally against tick stream).
-- UI toggle guarded by a modal: type "GO LIVE" to confirm, shows connected real balance, warns loss limits.
-- New append-only table `live_trade_audit` (contract_id, symbol, stake, entry, exit, pnl, snapshot_of_settings_json, created_at). RLS: owner read, service_role insert, no updates/deletes ever.
-- Trigger on `positions` insert/update when `is_live=true` writes to audit.
+### 6. Paper vs Live branch
 
----
+- `is_live=false` (default): existing behavior — insert `positions` row directly with the simulated fill price; no Deriv buy call. Manages/closes locally against tick price (as today).
+- `is_live=true`: the full flow in §3 + §4 + §5. `live_trade_audit` gets an entry for every open, close, block, and reconciliation event.
 
-## Phase 6 — Auth on the dashboard
+### 7. Admin UI additions
 
-**Goal:** no anonymous access to trading state.
+Small additions to `/admin`:
+- **Live mode toggle**: Switch bound to `settings.is_live`. Confirmation modal: type "GO LIVE" to enable. Shows the currently-attached owner Deriv account (loginid, VR/real, balance).
+- **Guardrail inputs**: number fields for `daily_loss_limit`, `max_open_positions`, `max_stake_per_trade`, `max_stake_pct_equity`.
+- **Halt Engine** big red button (sets `settings.halt_engine=true`).
+- **Live audit tab**: table of last 100 `live_trade_audit` rows.
 
-- Move dashboard routes under `src/routes/_authenticated/`. Public homepage stays at `/` with marketing copy + login CTA.
-- Drop `anon` SELECT grants on `positions`, `settings`, `signals`, `symbol_state`, `learning_buckets`, `engine_runs`. Keep `engine_heartbeat` public-readable only for a slim status widget (or move that behind auth too).
-- Fetchers use `requireSupabaseAuth` + a `has_role('owner')` check so only you can see the trading data initially.
+## File Changes
 
----
+**New:**
+- `src/routes/api/public/worker-deriv-token.ts` — signed token fetch endpoint
+- `worker/src/deriv-auth-ws.ts` — authenticated Deriv WS for orders
+- `worker/src/reconciler.ts` — 60s reconciliation loop
+- `worker/src/guardrails.ts` — pre-trade checks
+- `src/components/admin/GoLiveToggle.tsx`
+- `src/components/admin/GuardrailSettings.tsx`
+- `src/components/admin/LiveAuditTable.tsx`
 
-## Phase 7 — Worker health alerting
+**Modified:**
+- `worker/src/engine.ts` — idempotent buy flow, paper/live branch, guardrail integration
+- `worker/src/index.ts` — start reconciler, load owner token on boot
+- `worker/src/db.ts` — add helper for token fetch endpoint (separate URL, same HMAC)
+- `src/routes/api/public/worker-sync.ts` — allow `live_trade_audit` table
+- `src/routes/_authenticated/admin/index.tsx` — mount new admin components
 
-**Goal:** you find out before your users do.
+**No DB migration needed** — all columns/tables already exist from the earlier hardening migration.
 
-- Cron server route `/api/public/cron/health-check` (called every minute by pg_cron or external cron) — if `engine_heartbeat.updated_at` age > 30s, send alert.
-- Alert channels: email via Resend (already available via Lovable AI Gateway? — will confirm) **and/or** Telegram bot (needs `TELEGRAM_BOT_TOKEN` + chat id).
-- Alerts also fire on: `[proc] unhandledRejection`, Deriv `authorize` failure, reconciliation drift > 0.
-- Simple cooldown: max 1 alert per channel per 10 min per alert-type.
+## What This Does NOT Cover
 
-**Needs from you (Phase 7):** preferred alert channel — Telegram (fastest), email (Resend), or both?
+Deferred to later phases (still needed before "public launch" but not for owner-only live testing):
+- Multi-user auto-trading (each user's own Deriv account)
+- Phase 7 health alerts (Telegram/email) — recommended next
+- Rate limiting on user-facing endpoints
+- Structured JSON logs / observability
+- Terms & conditions / risk disclosure
 
----
+## Deployment Note (droplet)
 
-## What is NOT in this plan
+After I ship the code, you'll need to on the DigitalOcean droplet:
+```
+cd bnc-worker && git pull && npm install && npm run build && pm2 restart bnc-worker
+```
+I'll include the exact command list in the final message.
 
-- Phases 8–14 (rate-limit polish, position-size-vs-equity refinement beyond guardrails, migration/rollback docs, structured logs, learning-bucket review, TZ audit, T&Cs page). These are important but non-blocking; we'll do them after Phase 7 is green.
-- Any auto-flip to live mode. `is_live` stays a manual toggle you control.
+## Risk Assessment Post-Ship
 
-## Technical Details
-
-- Worker changes deploy the same way as today: `git pull && npm i && npm run build && pm2 restart bnc-worker --update-env`.
-- All new DB tables get GRANTs + RLS in the same migration.
-- Encryption key `DERIV_TOKEN_ENC_KEY` will be generated via `generate_secret` (never revealed).
-- Deriv OAuth `app_id` will be stored as `DERIV_APP_ID` (public, not a secret, but env-configured).
-- The worker fetches decrypted tokens via a new authenticated server function using `WORKER_SHARED_SECRET` bearer — service role never leaves Lovable Cloud.
-
----
-
-## Two things I need from you before I start Phase 1
-
-1. **Deriv OAuth app**: register at https://api.deriv.com/dashboard, use redirect `https://sparky-trader.lovable.app/api/public/deriv/callback`, then paste the `app_id` (a number, e.g. `12345`) here.
-2. **Alert channel preference** for Phase 7 (Telegram, email, or both).
-
-Approve this plan and I'll start on Phase 1 immediately.
+- **Paper mode** (`is_live=false`, default): unchanged — safe to run indefinitely.
+- **Live mode with small stake ($0.35–$1)**: safe to test once you (a) connect the owner Deriv account via `/dashboard`, (b) set `daily_loss_limit=5`, `max_open_positions=1`, `max_stake_per_trade=1`, (c) toggle `is_live=true` with the confirmation modal.
+- Anything larger: run 2 weeks of live micro-stake first, then scale.
