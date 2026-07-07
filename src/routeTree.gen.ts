@@ -9,19 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as BrainRouteImport } from './routes/brain'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiPublicWorkerSyncRouteImport } from './routes/api/public/worker-sync'
 import { Route as ApiPublicTickEngineRouteImport } from './routes/api/public/tick-engine'
+import { Route as AuthenticatedAdminBrainRouteImport } from './routes/_authenticated/admin/brain'
 
-const BrainRoute = BrainRouteImport.update({
-  id: '/brain',
-  path: '/brain',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/_authenticated/admin/',
+  path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWorkerSyncRoute = ApiPublicWorkerSyncRouteImport.update({
@@ -34,64 +29,66 @@ const ApiPublicTickEngineRoute = ApiPublicTickEngineRouteImport.update({
   path: '/api/public/tick-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminBrainRoute = AuthenticatedAdminBrainRouteImport.update({
+  id: '/_authenticated/admin/brain',
+  path: '/admin/brain',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/brain': typeof BrainRoute
+  '/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/brain': typeof BrainRoute
+  '/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/brain': typeof BrainRoute
+  '/_authenticated/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/brain'
+    | '/admin/brain'
     | '/api/public/tick-engine'
     | '/api/public/worker-sync'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/brain' | '/api/public/tick-engine' | '/api/public/worker-sync'
+  to:
+    | '/admin/brain'
+    | '/api/public/tick-engine'
+    | '/api/public/worker-sync'
+    | '/admin'
   id:
     | '__root__'
-    | '/'
-    | '/brain'
+    | '/_authenticated/admin/brain'
     | '/api/public/tick-engine'
     | '/api/public/worker-sync'
+    | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  BrainRoute: typeof BrainRoute
+  AuthenticatedAdminBrainRoute: typeof AuthenticatedAdminBrainRoute
   ApiPublicTickEngineRoute: typeof ApiPublicTickEngineRoute
   ApiPublicWorkerSyncRoute: typeof ApiPublicWorkerSyncRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/brain': {
-      id: '/brain'
-      path: '/brain'
-      fullPath: '/brain'
-      preLoaderRoute: typeof BrainRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/worker-sync': {
@@ -108,14 +105,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTickEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/brain': {
+      id: '/_authenticated/admin/brain'
+      path: '/admin/brain'
+      fullPath: '/admin/brain'
+      preLoaderRoute: typeof AuthenticatedAdminBrainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  BrainRoute: BrainRoute,
+  AuthenticatedAdminBrainRoute: AuthenticatedAdminBrainRoute,
   ApiPublicTickEngineRoute: ApiPublicTickEngineRoute,
   ApiPublicWorkerSyncRoute: ApiPublicWorkerSyncRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
