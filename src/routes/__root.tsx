@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
+import logo from "@/assets/nexxtrade-logo.png.asset.json";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -79,23 +80,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Nexxtrade" },
-      { name: "description", content: "Trade smarter with AI" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Nexxtrade" },
-      { property: "og:description", content: "Trade smarter with AI" },
+      { title: "NexxTrade — Autonomous AI trading agents" },
+      { name: "description", content: "Deploy AI agents that trade Deriv Boom & Crash 24/7 on your account. Non-custodial, guardrail-protected, crypto & forex next." },
+      { property: "og:title", content: "NexxTrade — Autonomous AI trading agents" },
+      { property: "og:description", content: "Deploy AI agents that trade Deriv Boom & Crash 24/7 on your account. Non-custodial · Trade-only API · Server-enforced risk limits." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Nexxtrade" },
-      { name: "twitter:description", content: "Trade smarter with AI" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c1cdb209-2414-49ef-8701-365ebdf198a3/id-preview-62a3694f--21180bdb-f66a-4589-836b-52ca425a0cd6.lovable.app-1782873817813.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c1cdb209-2414-49ef-8701-365ebdf198a3/id-preview-62a3694f--21180bdb-f66a-4589-836b-52ca425a0cd6.lovable.app-1782873817813.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "NexxTrade — Autonomous AI trading agents" },
+      { name: "twitter:description", content: "AI agents that trade Deriv Boom & Crash for you." },
     ],
     links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", type: "image/png", href: logo.url },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: appCss,
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap",
       },
     ],
   }),
@@ -135,7 +136,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-right" theme="dark" />
     </QueryClientProvider>
   );
 }
