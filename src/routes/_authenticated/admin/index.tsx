@@ -150,7 +150,7 @@ function Dashboard() {
         <div className="flex items-center gap-2">
           <EngineStatus />
           <a
-            href="/brain"
+            href="/admin/brain"
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:border-primary/40"
           >
             🧠 Brain
