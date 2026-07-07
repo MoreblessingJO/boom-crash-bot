@@ -87,8 +87,16 @@ export const Route = createFileRoute("/api/public/worker-sync")({
           return new Response("invalid signature", { status: 401 });
         }
 
-        let body: { ops?: Op[] };
+        let body: { ts?: number; ops?: Op[] };
         try { body = JSON.parse(raw); } catch { return new Response("bad json", { status: 400 }); }
+
+        // Replay protection: signed payload must include a recent timestamp.
+        // 30 s window accommodates modest clock skew without allowing replays.
+        const ts = typeof body.ts === "number" ? body.ts : 0;
+        if (!ts || Math.abs(Date.now() - ts) > 30_000) {
+          return new Response("stale request", { status: 401 });
+        }
+
         const ops = body.ops ?? [];
         if (!Array.isArray(ops) || ops.length === 0 || ops.length > 25) {
           return new Response("bad ops", { status: 400 });
