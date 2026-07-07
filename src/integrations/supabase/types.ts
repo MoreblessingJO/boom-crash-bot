@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_log: {
+        Row: {
+          alert_type: string
+          channel: string
+          id: string
+          message: string
+          sent_at: string
+        }
+        Insert: {
+          alert_type: string
+          channel: string
+          id?: string
+          message: string
+          sent_at?: string
+        }
+        Update: {
+          alert_type?: string
+          channel?: string
+          id?: string
+          message?: string
+          sent_at?: string
+        }
+        Relationships: []
+      }
       engine_heartbeat: {
         Row: {
           id: number
@@ -110,8 +134,51 @@ export type Database = {
         }
         Relationships: []
       }
+      live_trade_audit: {
+        Row: {
+          contract_id: string | null
+          created_at: string
+          entry: number | null
+          event: string
+          exit_price: number | null
+          id: string
+          pnl: number | null
+          position_id: string | null
+          settings_snapshot: Json | null
+          stake: number
+          symbol: string
+        }
+        Insert: {
+          contract_id?: string | null
+          created_at?: string
+          entry?: number | null
+          event: string
+          exit_price?: number | null
+          id?: string
+          pnl?: number | null
+          position_id?: string | null
+          settings_snapshot?: Json | null
+          stake: number
+          symbol: string
+        }
+        Update: {
+          contract_id?: string | null
+          created_at?: string
+          entry?: number | null
+          event?: string
+          exit_price?: number | null
+          id?: string
+          pnl?: number | null
+          position_id?: string | null
+          settings_snapshot?: Json | null
+          stake?: number
+          symbol?: string
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
+          client_req_id: string | null
           closed_at: string | null
           closed_epoch: number | null
           confidence: number | null
@@ -134,6 +201,7 @@ export type Database = {
           unit: number
         }
         Insert: {
+          client_req_id?: string | null
           closed_at?: string | null
           closed_epoch?: number | null
           confidence?: number | null
@@ -156,6 +224,7 @@ export type Database = {
           unit: number
         }
         Update: {
+          client_req_id?: string | null
           closed_at?: string | null
           closed_epoch?: number | null
           confidence?: number | null
@@ -181,14 +250,20 @@ export type Database = {
       }
       settings: {
         Row: {
+          daily_loss_limit: number | null
           enabled_symbols: string[]
           external_worker_enabled: boolean
+          halt_engine: boolean
           id: number
+          is_live: boolean
           kill_switch: boolean
           late_entry_ratio: number
           learning_enabled: boolean
           max_daily_loss: number
           max_hold_ratio: number
+          max_open_positions: number | null
+          max_stake_pct_equity: number | null
+          max_stake_per_trade: number | null
           mode: string
           paper_balance: number
           pre_spike_ratio: number
@@ -199,14 +274,20 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          daily_loss_limit?: number | null
           enabled_symbols?: string[]
           external_worker_enabled?: boolean
+          halt_engine?: boolean
           id?: number
+          is_live?: boolean
           kill_switch?: boolean
           late_entry_ratio?: number
           learning_enabled?: boolean
           max_daily_loss?: number
           max_hold_ratio?: number
+          max_open_positions?: number | null
+          max_stake_pct_equity?: number | null
+          max_stake_per_trade?: number | null
           mode?: string
           paper_balance?: number
           pre_spike_ratio?: number
@@ -217,14 +298,20 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          daily_loss_limit?: number | null
           enabled_symbols?: string[]
           external_worker_enabled?: boolean
+          halt_engine?: boolean
           id?: number
+          is_live?: boolean
           kill_switch?: boolean
           late_entry_ratio?: number
           learning_enabled?: boolean
           max_daily_loss?: number
           max_hold_ratio?: number
+          max_open_positions?: number | null
+          max_stake_pct_equity?: number | null
+          max_stake_per_trade?: number | null
           mode?: string
           paper_balance?: number
           pre_spike_ratio?: number
@@ -273,6 +360,7 @@ export type Database = {
         Row: {
           ema_fast: number
           ema_slow: number
+          last_buy_at: string | null
           last_epoch: number | null
           last_price: number | null
           last_spike_epoch: number | null
@@ -286,6 +374,7 @@ export type Database = {
         Insert: {
           ema_fast?: number
           ema_slow?: number
+          last_buy_at?: string | null
           last_epoch?: number | null
           last_price?: number | null
           last_spike_epoch?: number | null
@@ -299,6 +388,7 @@ export type Database = {
         Update: {
           ema_fast?: number
           ema_slow?: number
+          last_buy_at?: string | null
           last_epoch?: number | null
           last_price?: number | null
           last_spike_epoch?: number | null
@@ -311,15 +401,91 @@ export type Database = {
         }
         Relationships: []
       }
+      user_deriv_accounts: {
+        Row: {
+          account_type: string
+          connected_at: string
+          created_at: string
+          currency: string | null
+          deriv_loginid: string
+          encrypted_token: string
+          id: string
+          is_active: boolean
+          scopes: string[]
+          token_iv: string
+          token_tag: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type: string
+          connected_at?: string
+          created_at?: string
+          currency?: string | null
+          deriv_loginid: string
+          encrypted_token: string
+          id?: string
+          is_active?: boolean
+          scopes?: string[]
+          token_iv: string
+          token_tag: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string
+          connected_at?: string
+          created_at?: string
+          currency?: string | null
+          deriv_loginid?: string
+          encrypted_token?: string
+          id?: string
+          is_active?: boolean
+          scopes?: string[]
+          token_iv?: string
+          token_tag?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      today_pnl: { Args: never; Returns: number }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "owner" | "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -446,6 +612,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["owner", "admin", "user"],
+    },
   },
 } as const
