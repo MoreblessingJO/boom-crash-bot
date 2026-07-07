@@ -83,7 +83,7 @@ function DashboardPage() {
           </p>
         </div>
 
-        <AgentCardBlock agent={agentQ.data} isLoading={agentQ.isLoading} />
+        <AgentCardBlock agent={agentQ.data ?? null} isLoading={agentQ.isLoading} />
 
         <MarketsTabs>
           <Card>
