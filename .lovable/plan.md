@@ -1,100 +1,51 @@
 
-# Deploy Worker to DigitalOcean Droplet
+## Context
 
-You'll run these commands yourself on the droplet — I'll guide you step by step. Nothing in the Lovable codebase needs to change for this milestone; everything is already wired (`worker/` directory, `external_worker_enabled` flag, `engine_heartbeat` table, `EngineStatus` badge).
+Lovable Cloud does not expose `SUPABASE_SERVICE_ROLE_KEY` to users or support — that's a platform policy, not a temporary block. So **Path A (worker talks directly to Supabase with the service-role key) is permanently off the table** for this project.
 
-## Step 1 — SSH into the droplet
+The good news: **Path B is already built, deployed, and working.** The worker on the DigitalOcean droplet signs each batch of DB ops with HMAC-SHA256 using `WORKER_SHARED_SECRET`, POSTs to `/api/public/worker-sync`, and the Lovable server executes them with `supabaseAdmin` server-side. This is a completely valid production architecture — many real systems run this way on purpose (single audited DB entry point, easy to add rate-limits and audit logs, no service-role key on a third-party VM).
 
-From your local PowerShell:
+So the next best update isn't a migration — it's **making Path B permanent and hardening it** so latency and reliability match what Path A would have given us.
 
-```bash
-ssh root@<YOUR_DROPLET_IP>
-```
+## Proposed plan
 
-Accept the fingerprint on first connect.
+### 1. Retire the Path A todo
+- Delete the "Path A — Migrate worker to direct Supabase service-role access" block from `.lovable/todo.md`.
+- Replace it with a short "Architecture: Path B (signed HTTP proxy) — permanent" note explaining why, so future you doesn't re-open the question.
 
-## Step 2 — Provision Ubuntu (one-time)
+### 2. Update the worker README + plan docs
+- `worker/README.md` currently mentions pasting `SUPABASE_SERVICE_ROLE_KEY` into `.env`. Rewrite the setup section to reflect Path B only: `LOVABLE_APP_URL` + `WORKER_SHARED_SECRET`.
+- `.lovable/plan.md` Step 4 asks you to fetch the service-role key. Rewrite it to reference `WORKER_SHARED_SECRET` (which you already have) and remove the service-role instructions.
 
-```bash
-apt update && apt upgrade -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs git
-npm install -g pm2
-node -v && npm -v && pm2 -v
-```
+### 3. Latency & reliability hardening on Path B
+The one real downside of Path B is a ~50–150 ms round-trip per DB batch (worker → Lovable Worker → Supabase) vs. ~20–40 ms direct. Mitigations:
 
-## Step 3 — Clone the repo
+- **Batch aggressively.** The endpoint already accepts up to 25 ops per request. Audit `worker/src/engine.ts` for spots that fire single-op writes in a hot loop (tick handler, heartbeat, symbol_state) and coalesce them into one signed request per tick cycle.
+- **Fire-and-forget for non-critical writes.** `engine_heartbeat` and `symbol_state` don't need to block the tick loop — send them without awaiting.
+- **Timeout + retry with jitter.** Wrap `sendOps` in a 3 s timeout and one retry on network error, so a transient Lovable Worker cold-start doesn't kill a tick.
+- **Connection reuse.** Use a single `undici` Agent with keep-alive so we avoid TLS handshake on every request. (Currently each `fetch` may open a fresh connection.)
 
-Replace with your GitHub URL:
+### 4. Endpoint hardening on the Lovable side
+`/api/public/worker-sync` is public by URL and only guarded by the HMAC. Small tightening:
 
-```bash
-cd /opt
-git clone https://github.com/<your-user>/<your-repo>.git bnc
-cd bnc/worker
-npm install
-npm run build
-```
+- **Timestamp in the signed body** + reject requests older than 30 s → prevents replay if a signed payload ever leaks.
+- **Rate limit** by signature-verified caller (simple in-memory or per-instance token bucket) so a runaway worker can't DOS the DB.
+- **Structured audit log** of ops to a new `worker_audit` table (op count, tables touched, ms taken) — cheap, and gives us a "what did the droplet just do?" trail without adding infra.
 
-## Step 4 — Configure secrets
+### 5. Optional: reduce writes with an outbox pattern
+For very-high-frequency ticks (`symbol_state` writes), batch to an in-memory buffer on the droplet and flush every 500 ms in one op instead of per-tick. Same UI freshness, ~10× fewer round-trips.
 
-```bash
-cp .env.example .env
-nano .env
-```
+## Out of scope
+- Any attempt to fetch, generate, or work around `SUPABASE_SERVICE_ROLE_KEY` — not possible on Lovable Cloud, don't burn cycles on it.
+- Moving the worker off DigitalOcean.
+- Rewriting engine logic.
 
-Fill in:
-- `SUPABASE_URL` — I'll give you the value from the Lovable backend
-- `SUPABASE_SERVICE_ROLE_KEY` — I'll walk you through pulling this from Project Settings → Secrets in Lovable Cloud (it's the `SUPABASE_SERVICE_ROLE_KEY` runtime secret)
+## Deliverables after approval
+- Updated `.lovable/todo.md`, `worker/README.md`, `.lovable/plan.md`
+- `worker/src/db.ts` gains keep-alive agent + timeout/retry
+- `worker/src/engine.ts` audited for batchable writes; heartbeat + symbol_state made fire-and-forget
+- `src/routes/api/public/worker-sync.ts` gains timestamp check + per-caller rate limit
+- New migration for `worker_audit` table (if you want the audit log — say the word and I'll include it, otherwise I'll skip)
 
-Save (Ctrl+O, Enter, Ctrl+X).
-
-## Step 5 — Launch under PM2
-
-```bash
-mkdir -p logs
-pm2 start ecosystem.config.cjs
-pm2 logs bnc-worker --lines 50
-```
-
-You should see:
-```
-[boot] bnc-worker starting · pid=...
-[boot] BOOM1000 hydrated N ticks, subscribed
-[boot] CRASH1000 hydrated N ticks, subscribed
-...
-```
-
-Press Ctrl+C to exit logs (worker keeps running).
-
-## Step 6 — Make it survive reboots
-
-```bash
-pm2 save
-pm2 startup systemd -u root --hp /root
-# pm2 prints a command — copy/paste/run it
-```
-
-## Step 7 — Flip the switch in Lovable
-
-Once the worker is alive, in the Lovable app:
-1. Open **Control Panel**
-2. Toggle **External Worker** ON
-3. The **EngineStatus** badge in the header should turn **green** (heartbeat <30s old)
-4. The in-browser cron stands down — droplet is now the brain
-
-## Verification
-
-```text
-pm2 status              → bnc-worker = online
-pm2 logs bnc-worker     → live tick activity, OPEN/CLOSE events
-Lovable header badge    → green "Worker live"
-Positions panel         → updates even with browser closed
-```
-
-## What I'll do during execution
-
-- Hand you the exact `SUPABASE_URL` and walk you through retrieving the service-role key
-- Debug any boot errors from `pm2 logs` output you paste back
-- Confirm heartbeat is green and trades are flowing from the droplet
-
-No code changes in this step — purely deployment.
+## Question before I build
+Do you want **all of the above** (full hardening pass), or just the **minimum** — docs + todo cleanup + keep-alive/timeout — and defer the rate-limit/audit-log work until you actually see a problem?
