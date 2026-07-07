@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      agents: {
+        Row: {
+          avg_trades_per_day: number
+          created_at: string
+          description: string
+          id: string
+          market: string
+          name: string
+          risk_level: string
+          slug: string
+          sort_order: number
+          status: string
+          strategy_key: string
+          tagline: string
+        }
+        Insert: {
+          avg_trades_per_day?: number
+          created_at?: string
+          description: string
+          id?: string
+          market: string
+          name: string
+          risk_level?: string
+          slug: string
+          sort_order?: number
+          status?: string
+          strategy_key: string
+          tagline: string
+        }
+        Update: {
+          avg_trades_per_day?: number
+          created_at?: string
+          description?: string
+          id?: string
+          market?: string
+          name?: string
+          risk_level?: string
+          slug?: string
+          sort_order?: number
+          status?: string
+          strategy_key?: string
+          tagline?: string
+        }
+        Relationships: []
+      }
       alert_log: {
         Row: {
           alert_type: string
@@ -430,6 +475,32 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      user_agent_selections: {
+        Row: {
+          agent_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_agent_selections_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_deriv_accounts: {
         Row: {
