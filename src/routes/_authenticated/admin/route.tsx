@@ -14,11 +14,12 @@ export const Route = createFileRoute("/_authenticated/admin")({
 function AdminLayout() {
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b bg-card/40">
+      <div className="border-b border-border/60 bg-card/40">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2 text-sm">
-          <span className="font-semibold text-primary">Admin</span>
+          <span className="font-display font-black text-primary">NexxTrade Admin</span>
           <Link to="/admin" className="text-muted-foreground hover:text-foreground [&.active]:text-foreground">Engine</Link>
           <Link to="/admin/brain" className="text-muted-foreground hover:text-foreground [&.active]:text-foreground">Brain</Link>
+          <Link to="/dashboard" className="text-muted-foreground hover:text-foreground">← Dashboard</Link>
           <span className="ml-auto text-xs text-muted-foreground">Sensitive controls · owner/admin only</span>
         </div>
       </div>

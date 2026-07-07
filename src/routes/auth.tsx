@@ -20,10 +20,10 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Sign in · Sparky Trader" },
-      { name: "description", content: "Sign in to your Sparky Trader account to connect your Deriv trading account and monitor autonomous strategies." },
-      { property: "og:title", content: "Sign in · Sparky Trader" },
-      { property: "og:description", content: "Autonomous Boom & Crash trading — sign in to connect your Deriv account." },
+      { title: "Sign in · NexxTrade" },
+      { name: "description", content: "Sign in to NexxTrade to deploy AI agents on your Deriv account." },
+      { property: "og:title", content: "Sign in · NexxTrade" },
+      { property: "og:description", content: "Autonomous AI trading agents — sign in to connect your Deriv account." },
     ],
   }),
   component: AuthPage,
@@ -103,8 +103,8 @@ function AuthPage() {
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
           <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back home</Link>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight">Sparky Trader</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign in to connect your Deriv account.</p>
+          <h1 className="font-display mt-4 text-4xl font-black tracking-tight">NexxTrade</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Sign in to deploy your AI agent.</p>
         </div>
 
         <Card>
@@ -169,7 +169,7 @@ function AuthPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">
-          By continuing you agree that trading involves risk. Sparky Trader is not financial advice.
+          By continuing you agree that trading involves risk. NexxTrade is not financial advice.
         </p>
       </div>
     </main>

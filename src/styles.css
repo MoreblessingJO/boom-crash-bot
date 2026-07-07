@@ -34,36 +34,38 @@
   --color-warn: var(--warn);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root {
-  /* Single dark trading theme — no light mode. */
-  --radius: 0.5rem;
-  --background: oklch(0.16 0.025 250);
-  --foreground: oklch(0.96 0.01 240);
-  --surface: oklch(0.20 0.028 250);
-  --surface-elevated: oklch(0.24 0.03 250);
-  --card: oklch(0.20 0.028 250);
-  --card-foreground: oklch(0.96 0.01 240);
-  --popover: oklch(0.22 0.03 250);
-  --popover-foreground: oklch(0.96 0.01 240);
-  --primary: oklch(0.78 0.18 195);          /* cyan */
-  --primary-foreground: oklch(0.18 0.03 250);
-  --secondary: oklch(0.28 0.03 250);
-  --secondary-foreground: oklch(0.96 0.01 240);
-  --muted: oklch(0.26 0.025 250);
-  --muted-foreground: oklch(0.68 0.02 250);
-  --accent: oklch(0.32 0.04 250);
-  --accent-foreground: oklch(0.96 0.01 240);
-  --destructive: oklch(0.66 0.24 25);
+  /* NexxTrade — near-black dark theme with neon lime-green accent. */
+  --radius: 0.75rem;
+  --background: oklch(0.14 0.005 240);
+  --foreground: oklch(0.97 0.005 145);
+  --surface: oklch(0.18 0.007 240);
+  --surface-elevated: oklch(0.22 0.008 240);
+  --card: oklch(0.17 0.007 240);
+  --card-foreground: oklch(0.97 0.005 145);
+  --popover: oklch(0.19 0.007 240);
+  --popover-foreground: oklch(0.97 0.005 145);
+  --primary: oklch(0.85 0.20 155);          /* neon lime-green */
+  --primary-foreground: oklch(0.15 0.02 155);
+  --secondary: oklch(0.24 0.008 240);
+  --secondary-foreground: oklch(0.97 0.005 145);
+  --muted: oklch(0.22 0.006 240);
+  --muted-foreground: oklch(0.66 0.012 240);
+  --accent: oklch(0.28 0.03 155);
+  --accent-foreground: oklch(0.97 0.005 145);
+  --destructive: oklch(0.65 0.24 25);
   --destructive-foreground: oklch(0.98 0.01 240);
-  --border: oklch(0.30 0.03 250);
-  --input: oklch(0.26 0.03 250);
-  --ring: oklch(0.78 0.18 195);
-  --boom: oklch(0.82 0.22 145);             /* lime/green */
-  --crash: oklch(0.68 0.25 25);             /* red */
-  --neon: oklch(0.85 0.18 195);             /* cyan glow */
+  --border: oklch(0.26 0.008 240);
+  --input: oklch(0.22 0.008 240);
+  --ring: oklch(0.85 0.20 155);
+  --boom: oklch(0.85 0.20 155);             /* lime/green — same as primary */
+  --crash: oklch(0.68 0.24 25);             /* red */
+  --neon: oklch(0.88 0.22 145);             /* neon glow */
   --warn: oklch(0.84 0.18 85);              /* amber */
 }
 
@@ -73,15 +75,24 @@
   * { border-color: var(--color-border); }
   html, body { background: var(--color-background); color: var(--color-foreground); }
   body {
+    font-family: var(--font-sans);
     background-image:
-      radial-gradient(circle at 15% 0%, oklch(0.30 0.10 200 / 0.25), transparent 50%),
-      radial-gradient(circle at 85% 100%, oklch(0.30 0.10 145 / 0.18), transparent 55%);
+      radial-gradient(circle at 20% -10%, oklch(0.85 0.20 155 / 0.10), transparent 45%),
+      radial-gradient(circle at 100% 100%, oklch(0.85 0.20 155 / 0.06), transparent 55%);
     background-attachment: fixed;
     font-feature-settings: "ss01", "cv02";
   }
+  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
 }
 
-@utility glow-cyan { box-shadow: 0 0 24px -4px oklch(0.78 0.18 195 / 0.55); }
-@utility glow-boom { box-shadow: 0 0 20px -4px oklch(0.82 0.22 145 / 0.6); }
-@utility glow-crash { box-shadow: 0 0 20px -4px oklch(0.68 0.25 25 / 0.6); }
+@utility glow-cyan { box-shadow: 0 0 24px -4px oklch(0.85 0.20 155 / 0.55); }
+@utility glow-boom { box-shadow: 0 0 20px -4px oklch(0.85 0.20 155 / 0.55); }
+@utility glow-crash { box-shadow: 0 0 20px -4px oklch(0.68 0.24 25 / 0.6); }
 @utility text-tabular { font-variant-numeric: tabular-nums; }
+@utility grid-bg {
+  background-image:
+    linear-gradient(oklch(0.30 0.01 240 / 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.30 0.01 240 / 0.35) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
+}
