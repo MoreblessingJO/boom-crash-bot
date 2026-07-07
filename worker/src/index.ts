@@ -3,6 +3,16 @@ import { DerivWS } from "./deriv-ws.js";
 import { Engine } from "./engine.js";
 import { SYMBOLS } from "./symbols.js";
 
+// Never let a transient DB/WS failure kill the worker; PM2 restarts are noisy
+// and lose in-memory buffers. Log and keep running.
+process.on("unhandledRejection", (reason) => {
+  const msg = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+  console.warn(`[proc] unhandledRejection: ${msg}`);
+});
+process.on("uncaughtException", (err) => {
+  console.warn(`[proc] uncaughtException: ${err.name}: ${err.message}`);
+});
+
 async function main() {
   console.log(`[boot] bnc-worker starting · pid=${process.pid}`);
   const engine = new Engine();
