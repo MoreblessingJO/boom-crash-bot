@@ -9,20 +9,45 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as BrainRouteImport } from './routes/brain'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiPublicWorkerSyncRouteImport } from './routes/api/public/worker-sync'
 import { Route as ApiPublicTickEngineRouteImport } from './routes/api/public/tick-engine'
+import { Route as AuthenticatedAdminBrainRouteImport } from './routes/_authenticated/admin/brain'
+import { Route as ApiPublicDerivCallbackRouteImport } from './routes/api/public/deriv/callback'
 
-const BrainRoute = BrainRouteImport.update({
-  id: '/brain',
-  path: '/brain',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
 const ApiPublicWorkerSyncRoute = ApiPublicWorkerSyncRouteImport.update({
   id: '/api/public/worker-sync',
@@ -34,57 +59,110 @@ const ApiPublicTickEngineRoute = ApiPublicTickEngineRouteImport.update({
   path: '/api/public/tick-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminBrainRoute = AuthenticatedAdminBrainRouteImport.update({
+  id: '/brain',
+  path: '/brain',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
+const ApiPublicDerivCallbackRoute = ApiPublicDerivCallbackRouteImport.update({
+  id: '/api/public/deriv/callback',
+  path: '/api/public/deriv/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/brain': typeof BrainRoute
+  '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/deriv/callback': typeof ApiPublicDerivCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/brain': typeof BrainRoute
+  '/auth': typeof AuthRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/public/deriv/callback': typeof ApiPublicDerivCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/brain': typeof BrainRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/admin/brain': typeof AuthenticatedAdminBrainRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/deriv/callback': typeof ApiPublicDerivCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/brain'
+    | '/auth'
+    | '/admin'
+    | '/dashboard'
+    | '/admin/brain'
     | '/api/public/tick-engine'
     | '/api/public/worker-sync'
+    | '/admin/'
+    | '/api/public/deriv/callback'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/brain' | '/api/public/tick-engine' | '/api/public/worker-sync'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/admin/brain'
+    | '/api/public/tick-engine'
+    | '/api/public/worker-sync'
+    | '/admin'
+    | '/api/public/deriv/callback'
   id:
     | '__root__'
     | '/'
-    | '/brain'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/admin'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/admin/brain'
     | '/api/public/tick-engine'
     | '/api/public/worker-sync'
+    | '/_authenticated/admin/'
+    | '/api/public/deriv/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  BrainRoute: typeof BrainRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
   ApiPublicTickEngineRoute: typeof ApiPublicTickEngineRoute
   ApiPublicWorkerSyncRoute: typeof ApiPublicWorkerSyncRoute
+  ApiPublicDerivCallbackRoute: typeof ApiPublicDerivCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/brain': {
-      id: '/brain'
-      path: '/brain'
-      fullPath: '/brain'
-      preLoaderRoute: typeof BrainRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -93,6 +171,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/api/public/worker-sync': {
       id: '/api/public/worker-sync'
@@ -108,14 +207,59 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTickEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/brain': {
+      id: '/_authenticated/admin/brain'
+      path: '/brain'
+      fullPath: '/admin/brain'
+      preLoaderRoute: typeof AuthenticatedAdminBrainRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/api/public/deriv/callback': {
+      id: '/api/public/deriv/callback'
+      path: '/api/public/deriv/callback'
+      fullPath: '/api/public/deriv/callback'
+      preLoaderRoute: typeof ApiPublicDerivCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminBrainRoute: typeof AuthenticatedAdminBrainRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+}
+
+const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
+  {
+    AuthenticatedAdminBrainRoute: AuthenticatedAdminBrainRoute,
+    AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  }
+
+const AuthenticatedAdminRouteRouteWithChildren =
+  AuthenticatedAdminRouteRoute._addFileChildren(
+    AuthenticatedAdminRouteRouteChildren,
+  )
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  BrainRoute: BrainRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
   ApiPublicTickEngineRoute: ApiPublicTickEngineRoute,
   ApiPublicWorkerSyncRoute: ApiPublicWorkerSyncRoute,
+  ApiPublicDerivCallbackRoute: ApiPublicDerivCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -4,7 +4,7 @@ import { useTrading } from "@/lib/trading-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/brain")({
+export const Route = createFileRoute("/_authenticated/admin/brain")({
   head: () => ({
     meta: [
       { title: "Brain Monitor — Boom & Crash AI Agent" },
@@ -255,7 +255,7 @@ function BrainMonitor() {
             Reset learner
           </Button>
           <Link
-            to="/"
+            to="/admin"
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:border-primary/40"
           >
             ← Dashboard
