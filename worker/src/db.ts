@@ -1,6 +1,21 @@
 // Path B: HTTP-signed proxy to the Lovable app instead of direct Supabase access.
 // Mimics the small subset of the supabase-js chainable API that engine.ts uses.
+//
+// Reliability hardening:
+//   - Signed payload includes a `ts` field; server rejects requests older than 30 s (replay protection).
+//   - Keep-alive dispatcher (undici Agent) so we skip TLS handshake on every request.
+//   - 3 s timeout + 1 retry with small jitter on network / timeout errors.
 import { createHmac } from "crypto";
+import { Agent, setGlobalDispatcher } from "undici";
+
+// One keep-alive pool for the whole worker process.
+setGlobalDispatcher(
+  new Agent({
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 60_000,
+    connections: 8,
+  }),
+);
 
 type Filter = { col: string; op: "eq" | "gte" | "lte" | "gt" | "lt"; val: unknown };
 type Action = "select" | "insert" | "update" | "upsert" | "delete";
@@ -20,6 +35,8 @@ interface OpResult<T = unknown> {
   error: { message: string; code?: string } | null;
 }
 
+const REQUEST_TIMEOUT_MS = 3000;
+
 function endpoint(): string {
   const base = process.env.LOVABLE_APP_URL;
   if (!base) throw new Error("Missing LOVABLE_APP_URL in .env");
@@ -31,15 +48,34 @@ function secret(): string {
   return s;
 }
 
+async function postOnce(raw: string, sig: string): Promise<Response> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(endpoint(), {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-worker-signature": sig },
+      body: raw,
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendOps(ops: OpDescriptor[]): Promise<OpResult[]> {
-  const raw = JSON.stringify({ ops });
+  const raw = JSON.stringify({ ts: Date.now(), ops });
   const sig = createHmac("sha256", secret()).update(raw).digest("hex");
-  const url = endpoint();
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-worker-signature": sig },
-    body: raw,
-  });
+
+  let res: Response;
+  try {
+    res = await postOnce(raw, sig);
+  } catch (e) {
+    // Network / timeout: one retry with jitter (50–200 ms).
+    await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 150)));
+    res = await postOnce(raw, sig);
+  }
+
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`worker-sync ${res.status}: ${txt.slice(0, 200)}`);
