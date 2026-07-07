@@ -13,7 +13,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import WebSocket from "ws";
+// Use the platform's native WebSocket (available in Workers runtime + Node 22).
 
 const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=";
 
