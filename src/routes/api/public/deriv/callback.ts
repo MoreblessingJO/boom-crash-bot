@@ -44,30 +44,29 @@ async function derivAuthorize(appId: string, token: string): Promise<{
 }> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(DERIV_WS + encodeURIComponent(appId));
-    const timeout = setTimeout(() => {
+    const done = (err: Error | null, val?: any) => {
       try { ws.close(); } catch {}
-      reject(new Error("Deriv authorize timeout"));
-    }, 8000);
-    ws.on("open", () => ws.send(JSON.stringify({ authorize: token })));
-    ws.on("message", (buf) => {
+      if (err) reject(err); else resolve(val);
+    };
+    const timeout = setTimeout(() => done(new Error("Deriv authorize timeout")), 8000);
+    ws.addEventListener("open", () => ws.send(JSON.stringify({ authorize: token })));
+    ws.addEventListener("message", (ev: MessageEvent) => {
+      clearTimeout(timeout);
       try {
-        const msg = JSON.parse(buf.toString());
-        clearTimeout(timeout);
-        try { ws.close(); } catch {}
-        if (msg.error) return reject(new Error(msg.error.message ?? "Deriv authorize error"));
+        const msg = JSON.parse(typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer));
+        if (msg.error) return done(new Error(msg.error.message ?? "Deriv authorize error"));
         const a = msg.authorize;
-        resolve({
+        done(null, {
           loginid: a.loginid,
           currency: a.currency,
           is_virtual: a.is_virtual,
           scopes: a.scopes ?? [],
         });
       } catch (e) {
-        clearTimeout(timeout);
-        reject(e as Error);
+        done(e as Error);
       }
     });
-    ws.on("error", (err) => { clearTimeout(timeout); reject(err); });
+    ws.addEventListener("error", () => { clearTimeout(timeout); done(new Error("Deriv WS error")); });
   });
 }
 
