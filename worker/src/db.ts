@@ -4,7 +4,7 @@
 // Reliability hardening:
 //   - Signed payload includes a `ts` field; server rejects requests older than 30 s (replay protection).
 //   - Keep-alive dispatcher (undici Agent) so we skip TLS handshake on every request.
-//   - 3 s timeout + 1 retry with small jitter on network / timeout errors.
+//   - Configurable timeout + retries with backoff on network / timeout errors.
 import { createHmac } from "crypto";
 import { Agent, setGlobalDispatcher } from "undici";
 
@@ -35,7 +35,17 @@ interface OpResult<T = unknown> {
   error: { message: string; code?: string } | null;
 }
 
-const REQUEST_TIMEOUT_MS = 3000;
+const REQUEST_TIMEOUT_MS = Number(process.env.WORKER_SYNC_TIMEOUT_MS ?? 10_000);
+const REQUEST_RETRIES = Number(process.env.WORKER_SYNC_RETRIES ?? 3);
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function describeError(e: unknown): string {
+  if (e instanceof Error) return `${e.name}: ${e.message}`;
+  return String(e);
+}
 
 function endpoint(): string {
   const base = process.env.LOVABLE_APP_URL;
@@ -67,21 +77,28 @@ async function sendOps(ops: OpDescriptor[]): Promise<OpResult[]> {
   const raw = JSON.stringify({ ts: Date.now(), ops });
   const sig = createHmac("sha256", secret()).update(raw).digest("hex");
 
-  let res: Response;
-  try {
-    res = await postOnce(raw, sig);
-  } catch (e) {
-    // Network / timeout: one retry with jitter (50–200 ms).
-    await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 150)));
-    res = await postOnce(raw, sig);
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= REQUEST_RETRIES; attempt += 1) {
+    try {
+      const res = await postOnce(raw, sig);
+      if (res.ok) {
+        const json = (await res.json()) as { results: OpResult[] };
+        return json.results;
+      }
+
+      const txt = await res.text().catch(() => "");
+      lastError = new Error(`worker-sync ${res.status}: ${txt.slice(0, 200)}`);
+      if (res.status < 500 && res.status !== 429) break;
+    } catch (e) {
+      lastError = e;
+    }
+
+    if (attempt < REQUEST_RETRIES) {
+      await sleep(250 * (attempt + 1) + Math.floor(Math.random() * 250));
+    }
   }
 
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`worker-sync ${res.status}: ${txt.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as { results: OpResult[] };
-  return json.results;
+  throw new Error(`worker-sync failed after ${REQUEST_RETRIES + 1} attempts: ${describeError(lastError)}`);
 }
 
 class QueryBuilder<T = unknown> implements PromiseLike<OpResult<T>> {
