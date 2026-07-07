@@ -182,6 +182,7 @@ export type Database = {
           closed_at: string | null
           closed_epoch: number | null
           confidence: number | null
+          deriv_contract_id: string | null
           entry_price: number
           exit_price: number | null
           exit_reason: string | null
@@ -205,6 +206,7 @@ export type Database = {
           closed_at?: string | null
           closed_epoch?: number | null
           confidence?: number | null
+          deriv_contract_id?: string | null
           entry_price: number
           exit_price?: number | null
           exit_reason?: string | null
@@ -228,6 +230,7 @@ export type Database = {
           closed_at?: string | null
           closed_epoch?: number | null
           confidence?: number | null
+          deriv_contract_id?: string | null
           entry_price?: number
           exit_price?: number | null
           exit_reason?: string | null

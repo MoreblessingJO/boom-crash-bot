@@ -1,0 +1,2 @@
+ALTER TABLE public.positions ADD COLUMN IF NOT EXISTS deriv_contract_id TEXT;
+CREATE INDEX IF NOT EXISTS positions_deriv_contract_id_idx ON public.positions(deriv_contract_id) WHERE deriv_contract_id IS NOT NULL;
