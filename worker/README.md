@@ -41,7 +41,12 @@ in the Lovable app — keep them in sync if you tweak the math.
    cd /opt/bnc-worker
    npm ci
    cp .env.example .env
-   nano .env   # paste SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+   nano .env
+   # Fill in:
+   #   LOVABLE_APP_URL=https://project--21180bdb-f66a-4589-836b-52ca425a0cd6.lovable.app
+   #   WORKER_SHARED_SECRET=<value from Lovable → Cloud → Secrets>
+   # Note: SUPABASE_SERVICE_ROLE_KEY is NOT used. The worker talks to the
+   # Lovable app via a signed HTTP proxy (Path B). See .lovable/todo.md.
    npm run build
    ```
 
