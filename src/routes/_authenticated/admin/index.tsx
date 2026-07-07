@@ -19,7 +19,7 @@ import { LearningPanel } from "@/components/LearningPanel";
 import { EngineStatus } from "@/components/EngineStatus";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
     meta: [
       { title: "Boom & Crash AI Trading Agent" },

@@ -4,7 +4,7 @@ import { useTrading } from "@/lib/trading-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/brain")({
+export const Route = createFileRoute("/_authenticated/admin/brain")({
   head: () => ({
     meta: [
       { title: "Brain Monitor — Boom & Crash AI Agent" },
