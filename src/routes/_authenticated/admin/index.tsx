@@ -138,15 +138,15 @@ function Dashboard() {
     <div className="min-h-screen p-4 lg:p-6">
       <header className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-boom glow-cyan">
-            <span className="text-lg font-black text-primary-foreground">A</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15 glow-boom">
+            <span className="font-display text-lg font-black text-primary">N</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              Boom &amp; Crash <span className="text-primary">AI Agent</span>
+            <h1 className="font-display text-xl font-black tracking-tight">
+              NexxTrade <span className="text-primary">Admin</span>
             </h1>
             <p className="text-xs text-muted-foreground">
-              Autonomous hybrid strategy · Deriv synthetic indices
+              Engine control · Boom & Crash · Deriv synthetic indices
             </p>
           </div>
         </div>
