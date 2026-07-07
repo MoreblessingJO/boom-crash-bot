@@ -32,16 +32,16 @@ export function LiveTradingWidget() {
     (async () => {
       const { data } = await supabase
         .from("positions")
-        .select("symbol, direction, pnl, opened_at")
+        .select("symbol, side, pnl, opened_at")
         .order("opened_at", { ascending: false })
         .limit(6);
       if (cancelled || !data || data.length === 0) return;
       setRows(
         data.map((d) => ({
           symbol: d.symbol,
-          direction: (d.direction as "BUY" | "SELL") ?? "BUY",
+          direction: d.side === "SELL" ? "SELL" : "BUY",
           pnl: d.pnl,
-          when: timeAgo(d.opened_at as string),
+          when: timeAgo(d.opened_at),
         })),
       );
     })();
