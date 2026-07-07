@@ -13,6 +13,10 @@ const SETTINGS_REFRESH_MS = 10_000;
 const BUCKETS_REFRESH_MS = 10_000;
 const DAILY_PNL_REFRESH_MS = 30_000;
 
+function warnAsync(label: string, promise: PromiseLike<unknown>) {
+  promise.then(undefined, (e) => console.warn(`[engine] ${label}`, e instanceof Error ? e.message : e));
+}
+
 interface Settings {
   mode: string; stake: number; tp_r: number; sl_r: number;
   pre_spike_ratio: number; late_entry_ratio: number; max_hold_ratio: number;
@@ -100,9 +104,9 @@ export class Engine {
     if (buf.length > limit) buf.splice(0, buf.length - limit);
 
     // Cheap periodic refreshes
-    void this.refreshSettings();
-    void this.refreshBuckets();
-    void this.refreshDailyPnl();
+    warnAsync("refresh settings failed", this.refreshSettings());
+    warnAsync("refresh buckets failed", this.refreshBuckets());
+    warnAsync("refresh daily pnl failed", this.refreshDailyPnl());
 
     if (!this.settings) return;
     if (this.settings.kill_switch) return;
@@ -115,7 +119,7 @@ export class Engine {
     const now = Date.now();
     if ((this.lastStateWrite.get(symCode) ?? 0) + STATE_WRITE_THROTTLE_MS < now) {
       this.lastStateWrite.set(symCode, now);
-      void db().from("symbol_state").upsert({
+      warnAsync("symbol state write failed", db().from("symbol_state").upsert({
         symbol: symCode,
         last_epoch: state.lastEpoch,
         last_price: state.lastPrice,
@@ -125,7 +129,7 @@ export class Engine {
         rsi: state.rsi, ema_fast: state.emaFast, ema_slow: state.emaSlow,
         recent_ticks: buf.slice(-60),
         updated_at: new Date().toISOString(),
-      });
+      }));
     }
 
     // 1) Manage open position
@@ -182,10 +186,10 @@ export class Engine {
       console.log(`[engine] OPEN ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} regime=${sig.regime} conf=${sig.confidence.toFixed(2)}`);
     }
 
-    void db().from("signals").insert({
+    warnAsync("signal write failed", db().from("signals").insert({
       symbol: symCode, regime: sig.regime, direction: sig.direction,
       confidence: sig.confidence, reason: sig.reason, acted: true,
-    });
+    }));
   }
 
   private async maybeClose(pos: Position, state: ComputedState, avgSpikeTicks: number) {
