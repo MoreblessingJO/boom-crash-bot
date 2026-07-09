@@ -71,19 +71,20 @@ export const getAgentBySlug = createServerFn({ method: "GET" })
       .eq("agent_id", agent.id)
       .maybeSingle();
     return {
-      agent: agent as unknown as {
-        id: string;
-        slug: string;
-        name: string;
-        tagline: string;
-        description: string;
-        status: string;
-        risk_level: string;
-        strategy_params: Record<string, unknown>;
+      agent: {
+        id: agent.id as string,
+        slug: agent.slug as string,
+        name: agent.name as string,
+        tagline: agent.tagline as string,
+        description: agent.description as string,
+        status: agent.status as string,
+        risk_level: agent.risk_level as string,
+        strategy_params: (agent.strategy_params ?? {}) as Record<string, string | number | boolean | null>,
       },
       performance: (perf ?? null) as AgentPerformance | null,
     };
   });
+
 
 export const getAgentPositions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
