@@ -1,8 +1,13 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Lock, Zap } from "lucide-react";
+import { Check, Loader2, Lock, Zap, TrendingUp, TrendingDown } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import type { Agent } from "@/lib/agents.functions";
+import { listAgentPerformance } from "@/lib/agent-performance.functions";
+
 
 const marketLabel: Record<Agent["market"], string> = {
   boom_crash: "Boom & Crash",
