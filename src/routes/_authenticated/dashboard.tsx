@@ -13,6 +13,8 @@ import { Loader2, Link2, Unlink, ShieldCheck, ExternalLink, Bot, ArrowRight, Loc
 import { toast } from "sonner";
 import { z } from "zod";
 import logo from "@/assets/nexxtrade-logo.png.asset.json";
+import { AgentPerformanceTabs } from "@/components/AgentPerformanceTabs";
+
 
 const searchSchema = z.object({
   connected: z.string().optional(),
@@ -84,6 +86,10 @@ function DashboardPage() {
         </div>
 
         <AgentCardBlock agent={agentQ.data ?? null} isLoading={agentQ.isLoading} />
+
+        <AgentPerformanceTabs />
+
+
 
         <MarketsTabs>
           <Card>
