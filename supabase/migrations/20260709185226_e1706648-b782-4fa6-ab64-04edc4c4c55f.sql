@@ -1,0 +1,1 @@
+ALTER VIEW public.agent_performance SET (security_invoker = true);
