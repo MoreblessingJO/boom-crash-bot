@@ -10,7 +10,7 @@ import {
   computeState, bucketKey, confidenceFloor, isBucketDisabled,
   type ComputedState, type Direction, type RawTick,
 } from "./strategy.js";
-import { evaluateAgent, stakeMultiplier, type AgentRow } from "./strategies.js";
+import { evaluateAgent, stakeMultiplier, type AgentRow, type AgentSignal } from "./strategies.js";
 import type { DerivAuthWS } from "./deriv-auth-ws.js";
 import { checkGuardrails, auditEvent, type Guardrails } from "./guardrails.js";
 
