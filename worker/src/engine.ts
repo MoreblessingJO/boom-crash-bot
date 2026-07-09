@@ -46,7 +46,7 @@ interface Bucket {
   trades: number; wins: number; losses: number; ewma_r: number; disabled: boolean;
 }
 
-const key = (symbol: string, agentId: string) => `${symbol}|${agentId}`;
+const key = (symbol: string, agentId: string, slot = "main") => `${symbol}|${agentId}|${slot}`;
 
 export class Engine {
   private buffers = new Map<string, RawTick[]>();
