@@ -10,7 +10,7 @@ import {
   computeState, bucketKey, confidenceFloor, isBucketDisabled,
   type ComputedState, type Direction, type RawTick,
 } from "./strategy.js";
-import { evaluateAgent, stakeMultiplier, type AgentRow } from "./strategies.js";
+import { evaluateAgent, stakeMultiplier, type AgentRow, type AgentSignal } from "./strategies.js";
 import type { DerivAuthWS } from "./deriv-auth-ws.js";
 import { checkGuardrails, auditEvent, type Guardrails } from "./guardrails.js";
 
@@ -38,6 +38,7 @@ interface Position {
   entry_price: number; stake: number; tp_r: number; sl_r: number;
   unit: number; opened_epoch: number;
   agent_id?: string | null;
+  slot?: string | null;
   deriv_contract_id?: string | null;
   status?: string;
 }
@@ -46,7 +47,7 @@ interface Bucket {
   trades: number; wins: number; losses: number; ewma_r: number; disabled: boolean;
 }
 
-const key = (symbol: string, agentId: string) => `${symbol}|${agentId}`;
+const key = (symbol: string, agentId: string, slot = "main") => `${symbol}|${agentId}|${slot}`;
 
 export class Engine {
   private buffers = new Map<string, RawTick[]>();
@@ -70,7 +71,9 @@ export class Engine {
   setAuthWs(ws: DerivAuthWS | null) { this.authWs = ws; }
 
   async hydrateBuffer(sym: SymbolDef, ticks: RawTick[]) {
-    const limit = Math.min(5000, Math.max(300, sym.avgSpikeTicks * 3));
+    // Multi-timeframe strategies (Nexx/007/Sniper) need up to 600-tick lookback,
+    // so keep at least 3000 ticks per symbol.
+    const limit = Math.min(5000, Math.max(3000, sym.avgSpikeTicks * 3));
     this.bufferLimits.set(sym.code, limit);
     this.buffers.set(sym.code, ticks.slice(-limit));
   }
@@ -80,7 +83,7 @@ export class Engine {
     this.openByKey.clear();
     for (const p of (data ?? []) as Position[]) {
       if (!p.agent_id) continue;
-      this.openByKey.set(key(p.symbol, p.agent_id), p);
+      this.openByKey.set(key(p.symbol, p.agent_id, p.slot ?? "main"), p);
     }
   }
 
@@ -170,27 +173,35 @@ export class Engine {
   }
 
   private async tickAgent(agent: AgentRow, sym: SymbolDef, state: ComputedState, now: number) {
-    const k = key(sym.code, agent.id);
-
-    // 1) Manage open position for this agent+symbol
-    const open = this.openByKey.get(k);
-    if (open) {
-      const closed = await this.maybeClose(open, state, sym.avgSpikeTicks);
+    // 1) Close any of this agent's open slots for this symbol
+    for (const [k, pos] of Array.from(this.openByKey.entries())) {
+      if (pos.agent_id !== agent.id || pos.symbol !== sym.code) continue;
+      const closed = await this.maybeClose(pos, state, sym.avgSpikeTicks);
       if (closed) {
         this.openByKey.delete(k);
         if (this.settings!.learning_enabled) {
-          await this.updateBucket(open.symbol, open.regime, open.side, closed.realized_r);
+          await this.updateBucket(pos.symbol, pos.regime, pos.side, closed.realized_r);
         }
         this.lastDailyLoad = 0;
       }
-      return;
     }
 
     if (this.settings!.mode === "signals") return;
-    if ((this.lastBuyAt.get(k) ?? 0) + BUY_COOLDOWN_MS > now) return;
 
-    const sig = evaluateAgent(agent, sym, state);
+    const signals = evaluateAgent(agent, sym, state);
+    for (const sig of signals) await this.actOnSignal(agent, sym, state, sig, now);
+  }
+
+  private async actOnSignal(
+    agent: AgentRow, sym: SymbolDef, state: ComputedState, sig: AgentSignal, now: number,
+  ) {
     if (!sig.direction || sig.regime === "wait") return;
+    const slot = sig.slot ?? "main";
+    const k = key(sym.code, agent.id, slot);
+
+    // Already have this slot open? skip.
+    if (this.openByKey.has(k)) return;
+    if ((this.lastBuyAt.get(k) ?? 0) + BUY_COOLDOWN_MS > now) return;
 
     const dueRatio = state.ticksSinceSpike / sym.avgSpikeTicks;
     if (sig.regime === "spike-anticipation" && dueRatio > this.settings!.late_entry_ratio) return;
@@ -205,15 +216,20 @@ export class Engine {
     const unit = Math.max(state.medianAbsChange * 5, state.lastPrice * 0.0005);
     if (!isFinite(unit) || unit <= 0) return;
 
+    // Per-signal tp/sl overrides fall back to settings defaults
+    const tpR = sig.tpR ?? Number(this.settings!.tp_r);
+    const slR = sig.slR ?? Number(this.settings!.sl_r);
+
     const riskPct = Number(this.settings!.risk_pct ?? 0);
     const balance = Number(this.settings!.paper_balance ?? 0);
-    const slR = Number(this.settings!.sl_r) || 1;
+    const slForStake = slR || 1;
     const autoStake = riskPct > 0 && balance > 0
-      ? (balance * riskPct) / slR
+      ? (balance * riskPct) / slForStake
       : this.settings!.stake;
-    let stake = Math.max(0.35, Number((autoStake * stakeMultiplier(agent)).toFixed(2)));
+    const perAgentMult = stakeMultiplier(agent);
+    const perSigMult = sig.stakeMult ?? 1;
+    let stake = Math.max(0.35, Number((autoStake * perAgentMult * perSigMult).toFixed(2)));
 
-    // Only Nicco can go live; every other agent is forced-paper
     const isLive = !!this.settings!.is_live && agent.id === this.niccoId;
 
     const openCount = Array.from(this.openByKey.values()).filter((p) => p.agent_id === agent.id).length;
@@ -226,24 +242,23 @@ export class Engine {
       max_stake_per_trade: Number(this.settings!.max_stake_per_trade ?? 0),
       max_stake_pct_equity: Number(this.settings!.max_stake_pct_equity ?? 0),
     };
-    const snapshot = { symbol: sym.code, agent: agent.slug, guards, dailyPnl: this.dailyPnl, equity };
+    const snapshot = { symbol: sym.code, agent: agent.slug, slot, guards, dailyPnl: this.dailyPnl, equity };
     const gate = await checkGuardrails({
       symbol: sym.code, proposedStake: stake, equity,
       openOrPendingCount: openCount, dailyPnl: this.dailyPnl,
       guards, settingsSnapshot: snapshot,
     });
     if (!gate.ok) {
-      // Only log for live to keep paper noise down
-      if (isLive) console.log(`[engine] BLOCK ${agent.slug} ${sym.code} ${sig.direction}: ${gate.reason}`);
+      if (isLive) console.log(`[engine] BLOCK ${agent.slug}/${slot} ${sym.code} ${sig.direction}: ${gate.reason}`);
       return;
     }
     stake = gate.stake;
     this.lastBuyAt.set(k, now);
 
     if (isLive) {
-      await this.openLive(agent, sym.code, sig, state, stake, unit, snapshot);
+      await this.openLive(agent, sym.code, slot, sig, state, stake, unit, tpR, slR, snapshot);
     } else {
-      await this.openPaper(agent, sym.code, sig, state, stake, unit);
+      await this.openPaper(agent, sym.code, slot, sig, state, stake, unit, tpR, slR);
     }
 
     warnAsync("signal write failed", db().from("signals").insert({
@@ -254,29 +269,31 @@ export class Engine {
   }
 
   private async openPaper(
-    agent: AgentRow, symCode: string, sig: { direction: Direction | null; regime: string; confidence: number; reason: string },
-    state: ComputedState, stake: number, unit: number,
+    agent: AgentRow, symCode: string, slot: string,
+    sig: AgentSignal, state: ComputedState, stake: number, unit: number,
+    tpR: number, slR: number,
   ) {
     if (!sig.direction || !this.settings) return;
     const { data: inserted, error } = await db().from("positions").insert({
       symbol: symCode, side: sig.direction, regime: sig.regime,
       entry_price: state.lastPrice, stake,
-      tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
+      tp_r: tpR, sl_r: slR,
       unit, status: "open", reason: sig.reason,
       confidence: sig.confidence, opened_epoch: state.lastEpoch,
       client_req_id: randomUUID(),
-      agent_id: agent.id,
+      agent_id: agent.id, slot,
     }).select("*").maybeSingle();
     if (error) { console.warn(`[engine] paper insert failed`, error.message); return; }
     if (inserted) {
-      this.openByKey.set(key(symCode, agent.id), inserted as Position);
-      console.log(`[engine] PAPER OPEN ${agent.slug} ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} conf=${sig.confidence.toFixed(2)}`);
+      this.openByKey.set(key(symCode, agent.id, slot), inserted as Position);
+      console.log(`[engine] PAPER OPEN ${agent.slug}/${slot} ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} conf=${sig.confidence.toFixed(2)}`);
     }
   }
 
   private async openLive(
-    agent: AgentRow, symCode: string, sig: { direction: Direction | null; regime: string; confidence: number; reason: string },
-    state: ComputedState, stake: number, unit: number, snapshot: unknown,
+    agent: AgentRow, symCode: string, slot: string,
+    sig: AgentSignal, state: ComputedState, stake: number, unit: number,
+    tpR: number, slR: number, snapshot: unknown,
   ) {
     if (!sig.direction || !this.settings) return;
     if (!this.authWs || !this.authWs.isReady()) {
@@ -289,10 +306,10 @@ export class Engine {
     const { data: pendingRaw, error: insErr } = await db().from("positions").insert({
       symbol: symCode, side: sig.direction, regime: sig.regime,
       entry_price: state.lastPrice, stake,
-      tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
+      tp_r: tpR, sl_r: slR,
       unit, status: "pending", reason: sig.reason,
       confidence: sig.confidence, opened_epoch: state.lastEpoch,
-      client_req_id: clientReqId, agent_id: agent.id,
+      client_req_id: clientReqId, agent_id: agent.id, slot,
     }).select("*").maybeSingle();
     if (insErr || !pendingRaw) {
       console.warn(`[engine] pending insert failed`, insErr?.message);
@@ -309,14 +326,14 @@ export class Engine {
       const open: Position = {
         ...(pending as Position), status: "open",
         entry_price: buy.buy_price, opened_epoch: buy.start_time,
-        deriv_contract_id: buy.contract_id, agent_id: agent.id,
+        deriv_contract_id: buy.contract_id, agent_id: agent.id, slot,
       };
-      this.openByKey.set(key(symCode, agent.id), open);
+      this.openByKey.set(key(symCode, agent.id, slot), open);
       await auditEvent("LIVE_OPEN", {
         position_id: pending.id, contract_id: buy.contract_id, symbol: symCode,
         stake, entry: buy.buy_price, settings_snapshot: snapshot,
       });
-      console.log(`[engine] LIVE OPEN ${agent.slug} ${symCode} ${sig.direction} contract=${buy.contract_id} price=${buy.buy_price}`);
+      console.log(`[engine] LIVE OPEN ${agent.slug}/${slot} ${symCode} ${sig.direction} contract=${buy.contract_id} price=${buy.buy_price}`);
     } catch (e) {
       const msg = (e as Error).message;
       console.warn(`[engine] LIVE buy failed ${symCode}: ${msg}`);

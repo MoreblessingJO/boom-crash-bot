@@ -289,6 +289,7 @@ export type Database = {
           regime: string
           side: string
           sl_r: number
+          slot: string
           stake: number
           status: string
           symbol: string
@@ -314,6 +315,7 @@ export type Database = {
           regime: string
           side: string
           sl_r: number
+          slot?: string
           stake: number
           status?: string
           symbol: string
@@ -339,6 +341,7 @@ export type Database = {
           regime?: string
           side?: string
           sl_r?: number
+          slot?: string
           stake?: number
           status?: string
           symbol?: string
