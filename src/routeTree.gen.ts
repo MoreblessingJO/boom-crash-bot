@@ -19,6 +19,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as ApiPublicWorkerSyncRouteImport } from './routes/api/public/worker-sync'
 import { Route as ApiPublicWorkerDerivTokenRouteImport } from './routes/api/public/worker-deriv-token'
 import { Route as ApiPublicTickEngineRouteImport } from './routes/api/public/tick-engine'
+import { Route as AuthenticatedAgentsSlugRouteImport } from './routes/_authenticated/agents.$slug'
 import { Route as AuthenticatedAdminBrainRouteImport } from './routes/_authenticated/admin/brain'
 import { Route as ApiPublicDerivCallbackRouteImport } from './routes/api/public/deriv/callback'
 
@@ -72,6 +73,11 @@ const ApiPublicTickEngineRoute = ApiPublicTickEngineRouteImport.update({
   path: '/api/public/tick-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAgentsSlugRoute = AuthenticatedAgentsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => AuthenticatedAgentsRoute,
+} as any)
 const AuthenticatedAdminBrainRoute = AuthenticatedAdminBrainRouteImport.update({
   id: '/brain',
   path: '/brain',
@@ -87,9 +93,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
-  '/agents': typeof AuthenticatedAgentsRoute
+  '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/brain': typeof AuthenticatedAdminBrainRoute
+  '/agents/$slug': typeof AuthenticatedAgentsSlugRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-deriv-token': typeof ApiPublicWorkerDerivTokenRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
@@ -99,9 +106,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/agents': typeof AuthenticatedAgentsRoute
+  '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/brain': typeof AuthenticatedAdminBrainRoute
+  '/agents/$slug': typeof AuthenticatedAgentsSlugRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-deriv-token': typeof ApiPublicWorkerDerivTokenRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
@@ -114,9 +122,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
-  '/_authenticated/agents': typeof AuthenticatedAgentsRoute
+  '/_authenticated/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/admin/brain': typeof AuthenticatedAdminBrainRoute
+  '/_authenticated/agents/$slug': typeof AuthenticatedAgentsSlugRoute
   '/api/public/tick-engine': typeof ApiPublicTickEngineRoute
   '/api/public/worker-deriv-token': typeof ApiPublicWorkerDerivTokenRoute
   '/api/public/worker-sync': typeof ApiPublicWorkerSyncRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/dashboard'
     | '/admin/brain'
+    | '/agents/$slug'
     | '/api/public/tick-engine'
     | '/api/public/worker-deriv-token'
     | '/api/public/worker-sync'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/dashboard'
     | '/admin/brain'
+    | '/agents/$slug'
     | '/api/public/tick-engine'
     | '/api/public/worker-deriv-token'
     | '/api/public/worker-sync'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/_authenticated/agents'
     | '/_authenticated/dashboard'
     | '/_authenticated/admin/brain'
+    | '/_authenticated/agents/$slug'
     | '/api/public/tick-engine'
     | '/api/public/worker-deriv-token'
     | '/api/public/worker-sync'
@@ -247,6 +259,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTickEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/agents/$slug': {
+      id: '/_authenticated/agents/$slug'
+      path: '/$slug'
+      fullPath: '/agents/$slug'
+      preLoaderRoute: typeof AuthenticatedAgentsSlugRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
     '/_authenticated/admin/brain': {
       id: '/_authenticated/admin/brain'
       path: '/brain'
@@ -280,15 +299,26 @@ const AuthenticatedAdminRouteRouteWithChildren =
     AuthenticatedAdminRouteRouteChildren,
   )
 
+interface AuthenticatedAgentsRouteChildren {
+  AuthenticatedAgentsSlugRoute: typeof AuthenticatedAgentsSlugRoute
+}
+
+const AuthenticatedAgentsRouteChildren: AuthenticatedAgentsRouteChildren = {
+  AuthenticatedAgentsSlugRoute: AuthenticatedAgentsSlugRoute,
+}
+
+const AuthenticatedAgentsRouteWithChildren =
+  AuthenticatedAgentsRoute._addFileChildren(AuthenticatedAgentsRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
-  AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
+  AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
-  AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
+  AuthenticatedAgentsRoute: AuthenticatedAgentsRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
 }
 
@@ -307,13 +337,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_paper_ledgers: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          paper_balance: number
+          starting_balance: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          paper_balance?: number
+          starting_balance?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          paper_balance?: number
+          starting_balance?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_paper_ledgers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "agent_performance"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "agent_paper_ledgers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agents: {
         Row: {
           avg_trades_per_day: number
@@ -27,6 +72,7 @@ export type Database = {
           sort_order: number
           status: string
           strategy_key: string
+          strategy_params: Json
           tagline: string
         }
         Insert: {
@@ -41,6 +87,7 @@ export type Database = {
           sort_order?: number
           status?: string
           strategy_key: string
+          strategy_params?: Json
           tagline: string
         }
         Update: {
@@ -55,6 +102,7 @@ export type Database = {
           sort_order?: number
           status?: string
           strategy_key?: string
+          strategy_params?: Json
           tagline?: string
         }
         Relationships: []
@@ -223,6 +271,7 @@ export type Database = {
       }
       positions: {
         Row: {
+          agent_id: string | null
           client_req_id: string | null
           closed_at: string | null
           closed_epoch: number | null
@@ -247,6 +296,7 @@ export type Database = {
           unit: number
         }
         Insert: {
+          agent_id?: string | null
           client_req_id?: string | null
           closed_at?: string | null
           closed_epoch?: number | null
@@ -271,6 +321,7 @@ export type Database = {
           unit: number
         }
         Update: {
+          agent_id?: string | null
           client_req_id?: string | null
           closed_at?: string | null
           closed_epoch?: number | null
@@ -294,7 +345,22 @@ export type Database = {
           tp_r?: number
           unit?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "positions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agent_performance"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "positions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -401,6 +467,7 @@ export type Database = {
       signals: {
         Row: {
           acted: boolean
+          agent_id: string | null
           confidence: number
           created_at: string
           direction: string | null
@@ -411,6 +478,7 @@ export type Database = {
         }
         Insert: {
           acted?: boolean
+          agent_id?: string | null
           confidence?: number
           created_at?: string
           direction?: string | null
@@ -421,6 +489,7 @@ export type Database = {
         }
         Update: {
           acted?: boolean
+          agent_id?: string | null
           confidence?: number
           created_at?: string
           direction?: string | null
@@ -429,7 +498,22 @@ export type Database = {
           regime?: string
           symbol?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "signals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agent_performance"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "signals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       symbol_state: {
         Row: {
@@ -493,6 +577,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "user_agent_selections_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agent_performance"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "user_agent_selections_agent_id_fkey"
             columns: ["agent_id"]
@@ -573,7 +664,29 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      agent_performance: {
+        Row: {
+          agent_id: string | null
+          avg_loss: number | null
+          avg_win: number | null
+          best_trade: number | null
+          current_balance: number | null
+          last_trade_at: string | null
+          losses: number | null
+          market: string | null
+          name: string | null
+          net_pnl: number | null
+          return_pct: number | null
+          slug: string | null
+          starting_balance: number | null
+          status: string | null
+          trades: number | null
+          win_rate: number | null
+          wins: number | null
+          worst_trade: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {

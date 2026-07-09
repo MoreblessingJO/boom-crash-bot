@@ -1,20 +1,24 @@
-// Per-tick engine. Paper mode: simulate locally. Live mode: place real
-// Deriv contracts with idempotency, guardrails, and reconciliation.
+// Per-tick multi-agent engine. Each active agent (Nicco, Nexx, 007, Sniper)
+// evaluates every tick independently, opens its own positions tagged with
+// agent_id, and its paper P&L accrues into agent_paper_ledgers via DB trigger.
+// Only Nicco can run live-money (governed by settings.is_live). All other
+// agents are always paper regardless of the global live toggle.
 import { randomUUID } from "crypto";
 import { db } from "./db.js";
 import { SYMBOLS, type SymbolDef } from "./symbols.js";
 import {
-  computeState, localSignal, bucketKey, confidenceFloor, isBucketDisabled,
+  computeState, bucketKey, confidenceFloor, isBucketDisabled,
   type ComputedState, type Direction, type RawTick,
 } from "./strategy.js";
+import { evaluateAgent, stakeMultiplier, type AgentRow } from "./strategies.js";
 import type { DerivAuthWS } from "./deriv-auth-ws.js";
 import { checkGuardrails, auditEvent, type Guardrails } from "./guardrails.js";
 
 const EWMA_ALPHA = 0.15;
-const MIN_PRE_SPIKE_R = 1.0;
 const STATE_WRITE_THROTTLE_MS = 1000;
 const SETTINGS_REFRESH_MS = 10_000;
 const BUCKETS_REFRESH_MS = 10_000;
+const AGENTS_REFRESH_MS = 30_000;
 const DAILY_PNL_REFRESH_MS = 30_000;
 const BUY_COOLDOWN_MS = 3000;
 
@@ -33,6 +37,7 @@ interface Position {
   id: string; symbol: string; side: Direction; regime: string;
   entry_price: number; stake: number; tp_r: number; sl_r: number;
   unit: number; opened_epoch: number;
+  agent_id?: string | null;
   deriv_contract_id?: string | null;
   status?: string;
 }
@@ -41,17 +46,22 @@ interface Bucket {
   trades: number; wins: number; losses: number; ewma_r: number; disabled: boolean;
 }
 
+const key = (symbol: string, agentId: string) => `${symbol}|${agentId}`;
+
 export class Engine {
   private buffers = new Map<string, RawTick[]>();
   private bufferLimits = new Map<string, number>();
-  private openBySym = new Map<string, Position>();
-  private lastBuyAt = new Map<string, number>();
+  private openByKey = new Map<string, Position>();      // "symbol|agentId" -> Position
+  private lastBuyAt = new Map<string, number>();        // same key
   private settings: Settings | null = null;
   private buckets = new Map<string, Bucket>();
+  private agents: AgentRow[] = [];
+  private niccoId: string | null = null;
   private dailyPnl = 0;
   private lastStateWrite = new Map<string, number>();
   private lastSettingsLoad = 0;
   private lastBucketsLoad = 0;
+  private lastAgentsLoad = 0;
   private lastDailyLoad = 0;
   private symbolsConnected = 0;
   private authWs: DerivAuthWS | null = null;
@@ -67,8 +77,11 @@ export class Engine {
 
   async loadOpenPositions() {
     const { data } = await db().from("positions").select("*").eq("status", "open");
-    this.openBySym.clear();
-    for (const p of (data ?? []) as Position[]) this.openBySym.set(p.symbol, p);
+    this.openByKey.clear();
+    for (const p of (data ?? []) as Position[]) {
+      if (!p.agent_id) continue;
+      this.openByKey.set(key(p.symbol, p.agent_id), p);
+    }
   }
 
   private async refreshSettings(force = false) {
@@ -86,6 +99,15 @@ export class Engine {
     for (const b of (data ?? []) as Bucket[]) this.buckets.set(b.bucket_key, b);
   }
 
+  private async refreshAgents(force = false) {
+    if (!force && Date.now() - this.lastAgentsLoad < AGENTS_REFRESH_MS) return;
+    this.lastAgentsLoad = Date.now();
+    const { data } = await db().from("agents").select("id,slug,name,status,strategy_key,strategy_params")
+      .eq("market", "boom_crash").eq("status", "live");
+    this.agents = (data ?? []) as AgentRow[];
+    this.niccoId = this.agents.find((a) => a.slug === "nicco")?.id ?? null;
+  }
+
   private async refreshDailyPnl(force = false) {
     if (!force && Date.now() - this.lastDailyLoad < DAILY_PNL_REFRESH_MS) return;
     this.lastDailyLoad = Date.now();
@@ -99,6 +121,7 @@ export class Engine {
   async bootstrap() {
     await this.refreshSettings(true);
     await this.refreshBuckets(true);
+    await this.refreshAgents(true);
     await this.refreshDailyPnl(true);
     await this.loadOpenPositions();
   }
@@ -114,6 +137,7 @@ export class Engine {
 
     warnAsync("refresh settings failed", this.refreshSettings());
     warnAsync("refresh buckets failed", this.refreshBuckets());
+    warnAsync("refresh agents failed", this.refreshAgents());
     warnAsync("refresh daily pnl failed", this.refreshDailyPnl());
 
     if (!this.settings) return;
@@ -139,13 +163,22 @@ export class Engine {
       }));
     }
 
-    // 1) Manage open position
-    const open = this.openBySym.get(symCode);
+    // Evaluate every active agent for this symbol
+    for (const agent of this.agents) {
+      await this.tickAgent(agent, sym, state, now);
+    }
+  }
+
+  private async tickAgent(agent: AgentRow, sym: SymbolDef, state: ComputedState, now: number) {
+    const k = key(sym.code, agent.id);
+
+    // 1) Manage open position for this agent+symbol
+    const open = this.openByKey.get(k);
     if (open) {
       const closed = await this.maybeClose(open, state, sym.avgSpikeTicks);
       if (closed) {
-        this.openBySym.delete(symCode);
-        if (this.settings.learning_enabled) {
+        this.openByKey.delete(k);
+        if (this.settings!.learning_enabled) {
           await this.updateBucket(open.symbol, open.regime, open.side, closed.realized_r);
         }
         this.lastDailyLoad = 0;
@@ -153,20 +186,17 @@ export class Engine {
       return;
     }
 
-    // 2) Consider new entry
-    if (this.settings.mode === "signals") return;
+    if (this.settings!.mode === "signals") return;
+    if ((this.lastBuyAt.get(k) ?? 0) + BUY_COOLDOWN_MS > now) return;
 
-    // Cool-down: never buy the same symbol within BUY_COOLDOWN_MS
-    if ((this.lastBuyAt.get(symCode) ?? 0) + BUY_COOLDOWN_MS > now) return;
-
-    const sig = localSignal(sym, state);
+    const sig = evaluateAgent(agent, sym, state);
     if (!sig.direction || sig.regime === "wait") return;
 
     const dueRatio = state.ticksSinceSpike / sym.avgSpikeTicks;
-    if (sig.regime === "spike-anticipation" && dueRatio > this.settings.late_entry_ratio) return;
+    if (sig.regime === "spike-anticipation" && dueRatio > this.settings!.late_entry_ratio) return;
 
-    if (this.settings.learning_enabled) {
-      const b = this.buckets.get(bucketKey(symCode, sig.regime, sig.direction));
+    if (this.settings!.learning_enabled) {
+      const b = this.buckets.get(bucketKey(sym.code, sig.regime, sig.direction));
       if (b?.disabled) return;
       const floor = confidenceFloor(b?.trades ?? 0, b?.ewma_r ?? 0);
       if (sig.confidence < floor) return;
@@ -175,58 +205,57 @@ export class Engine {
     const unit = Math.max(state.medianAbsChange * 5, state.lastPrice * 0.0005);
     if (!isFinite(unit) || unit <= 0) return;
 
-    const riskPct = Number(this.settings.risk_pct ?? 0);
-    const balance = Number(this.settings.paper_balance ?? 0);
-    const slR = Number(this.settings.sl_r) || 1;
+    const riskPct = Number(this.settings!.risk_pct ?? 0);
+    const balance = Number(this.settings!.paper_balance ?? 0);
+    const slR = Number(this.settings!.sl_r) || 1;
     const autoStake = riskPct > 0 && balance > 0
       ? (balance * riskPct) / slR
-      : this.settings.stake;
-    let stake = Math.max(0.35, Number(autoStake.toFixed(2)));
+      : this.settings!.stake;
+    let stake = Math.max(0.35, Number((autoStake * stakeMultiplier(agent)).toFixed(2)));
 
-    // Guardrails
-    const openCount = this.openBySym.size;
+    // Only Nicco can go live; every other agent is forced-paper
+    const isLive = !!this.settings!.is_live && agent.id === this.niccoId;
+
+    const openCount = Array.from(this.openByKey.values()).filter((p) => p.agent_id === agent.id).length;
     const equity = this.authWs?.getAuthorized()?.balance ?? null;
     const guards: Guardrails = {
-      halt_engine: !!this.settings.halt_engine,
-      is_live: !!this.settings.is_live,
-      daily_loss_limit: Number(this.settings.daily_loss_limit ?? 0),
-      max_open_positions: Number(this.settings.max_open_positions ?? 0),
-      max_stake_per_trade: Number(this.settings.max_stake_per_trade ?? 0),
-      max_stake_pct_equity: Number(this.settings.max_stake_pct_equity ?? 0),
+      halt_engine: !!this.settings!.halt_engine,
+      is_live: isLive,
+      daily_loss_limit: Number(this.settings!.daily_loss_limit ?? 0),
+      max_open_positions: Number(this.settings!.max_open_positions ?? 0),
+      max_stake_per_trade: Number(this.settings!.max_stake_per_trade ?? 0),
+      max_stake_pct_equity: Number(this.settings!.max_stake_pct_equity ?? 0),
     };
-    const snapshot = { symbol: symCode, guards, dailyPnl: this.dailyPnl, equity };
+    const snapshot = { symbol: sym.code, agent: agent.slug, guards, dailyPnl: this.dailyPnl, equity };
     const gate = await checkGuardrails({
-      symbol: symCode,
-      proposedStake: stake,
-      equity,
-      openOrPendingCount: openCount,
-      dailyPnl: this.dailyPnl,
-      guards,
-      settingsSnapshot: snapshot,
+      symbol: sym.code, proposedStake: stake, equity,
+      openOrPendingCount: openCount, dailyPnl: this.dailyPnl,
+      guards, settingsSnapshot: snapshot,
     });
     if (!gate.ok) {
-      console.log(`[engine] BLOCK ${symCode} ${sig.direction}: ${gate.reason}`);
+      // Only log for live to keep paper noise down
+      if (isLive) console.log(`[engine] BLOCK ${agent.slug} ${sym.code} ${sig.direction}: ${gate.reason}`);
       return;
     }
     stake = gate.stake;
-    this.lastBuyAt.set(symCode, now);
+    this.lastBuyAt.set(k, now);
 
-    // Live vs paper branch
-    if (guards.is_live) {
-      await this.openLive(symCode, sig, state, stake, unit, snapshot);
+    if (isLive) {
+      await this.openLive(agent, sym.code, sig, state, stake, unit, snapshot);
     } else {
-      await this.openPaper(symCode, sig, state, stake, unit);
+      await this.openPaper(agent, sym.code, sig, state, stake, unit);
     }
 
     warnAsync("signal write failed", db().from("signals").insert({
-      symbol: symCode, regime: sig.regime, direction: sig.direction,
+      symbol: sym.code, regime: sig.regime, direction: sig.direction,
       confidence: sig.confidence, reason: sig.reason, acted: true,
+      agent_id: agent.id,
     }));
   }
 
   private async openPaper(
-    symCode: string, sig: ReturnType<typeof localSignal>, state: ComputedState,
-    stake: number, unit: number,
+    agent: AgentRow, symCode: string, sig: { direction: Direction | null; regime: string; confidence: number; reason: string },
+    state: ComputedState, stake: number, unit: number,
   ) {
     if (!sig.direction || !this.settings) return;
     const { data: inserted, error } = await db().from("positions").insert({
@@ -236,17 +265,18 @@ export class Engine {
       unit, status: "open", reason: sig.reason,
       confidence: sig.confidence, opened_epoch: state.lastEpoch,
       client_req_id: randomUUID(),
+      agent_id: agent.id,
     }).select("*").maybeSingle();
     if (error) { console.warn(`[engine] paper insert failed`, error.message); return; }
     if (inserted) {
-      this.openBySym.set(symCode, inserted as Position);
-      console.log(`[engine] PAPER OPEN ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} conf=${sig.confidence.toFixed(2)}`);
+      this.openByKey.set(key(symCode, agent.id), inserted as Position);
+      console.log(`[engine] PAPER OPEN ${agent.slug} ${symCode} ${sig.direction} @${state.lastPrice} stake=${stake} conf=${sig.confidence.toFixed(2)}`);
     }
   }
 
   private async openLive(
-    symCode: string, sig: ReturnType<typeof localSignal>, state: ComputedState,
-    stake: number, unit: number, snapshot: unknown,
+    agent: AgentRow, symCode: string, sig: { direction: Direction | null; regime: string; confidence: number; reason: string },
+    state: ComputedState, stake: number, unit: number, snapshot: unknown,
   ) {
     if (!sig.direction || !this.settings) return;
     if (!this.authWs || !this.authWs.isReady()) {
@@ -256,15 +286,13 @@ export class Engine {
     }
 
     const clientReqId = randomUUID();
-
-    // 1) Insert pending row (idempotency key via unique client_req_id)
     const { data: pendingRaw, error: insErr } = await db().from("positions").insert({
       symbol: symCode, side: sig.direction, regime: sig.regime,
       entry_price: state.lastPrice, stake,
       tp_r: this.settings.tp_r, sl_r: this.settings.sl_r,
       unit, status: "pending", reason: sig.reason,
       confidence: sig.confidence, opened_epoch: state.lastEpoch,
-      client_req_id: clientReqId,
+      client_req_id: clientReqId, agent_id: agent.id,
     }).select("*").maybeSingle();
     if (insErr || !pendingRaw) {
       console.warn(`[engine] pending insert failed`, insErr?.message);
@@ -272,80 +300,39 @@ export class Engine {
     }
     const pending = pendingRaw as Position;
 
-    // 2) Send Deriv buy
     try {
       const buy = await this.authWs.buy(symCode, sig.direction, stake);
       await db().from("positions").update({
-        status: "open",
-        deriv_contract_id: buy.contract_id,
-        entry_price: buy.buy_price,
-        opened_epoch: buy.start_time,
+        status: "open", deriv_contract_id: buy.contract_id,
+        entry_price: buy.buy_price, opened_epoch: buy.start_time,
       }).eq("id", pending.id);
       const open: Position = {
-        ...(pending as Position),
-        status: "open",
-        entry_price: buy.buy_price,
-        opened_epoch: buy.start_time,
-        deriv_contract_id: buy.contract_id,
+        ...(pending as Position), status: "open",
+        entry_price: buy.buy_price, opened_epoch: buy.start_time,
+        deriv_contract_id: buy.contract_id, agent_id: agent.id,
       };
-      this.openBySym.set(symCode, open);
+      this.openByKey.set(key(symCode, agent.id), open);
       await auditEvent("LIVE_OPEN", {
         position_id: pending.id, contract_id: buy.contract_id, symbol: symCode,
         stake, entry: buy.buy_price, settings_snapshot: snapshot,
       });
-      console.log(`[engine] LIVE OPEN ${symCode} ${sig.direction} contract=${buy.contract_id} price=${buy.buy_price}`);
+      console.log(`[engine] LIVE OPEN ${agent.slug} ${symCode} ${sig.direction} contract=${buy.contract_id} price=${buy.buy_price}`);
     } catch (e) {
       const msg = (e as Error).message;
       console.warn(`[engine] LIVE buy failed ${symCode}: ${msg}`);
-      // Try to adopt via portfolio in case buy actually went through
-      let adopted = false;
-      try {
-        const port = await this.authWs.portfolio();
-        // Best-effort: adopt most recent contract on this symbol whose buy_price ~= stake
-        const cand = port
-          .filter((c) => c.symbol === symCode)
-          .sort((a, b) => b.purchase_time - a.purchase_time)[0];
-        if (cand && Math.abs(cand.buy_price - stake) < 0.5 && cand.purchase_time * 1000 > Date.now() - 30_000) {
-          await db().from("positions").update({
-            status: "open",
-            deriv_contract_id: cand.contract_id,
-            entry_price: cand.buy_price,
-            opened_epoch: cand.purchase_time,
-          }).eq("id", pending.id);
-          this.openBySym.set(symCode, {
-            ...(pending as Position),
-            status: "open",
-            entry_price: cand.buy_price,
-            opened_epoch: cand.purchase_time,
-            deriv_contract_id: cand.contract_id,
-          });
-          adopted = true;
-          await auditEvent("LIVE_ADOPTED_AFTER_ERROR", {
-            position_id: pending.id, contract_id: cand.contract_id, symbol: symCode,
-            stake, entry: cand.buy_price, settings_snapshot: { error: msg, ...(snapshot as object) },
-          });
-          console.log(`[engine] LIVE adopted ${symCode} contract=${cand.contract_id} after buy error`);
-        }
-      } catch { /* noop */ }
-      if (!adopted) {
-        await db().from("positions").update({
-          status: "failed", exit_reason: `BUY_ERROR: ${msg.slice(0, 100)}`,
-          closed_at: new Date().toISOString(),
-        }).eq("id", pending.id);
-        await auditEvent("LIVE_BUY_FAILED", {
-          position_id: pending.id, symbol: symCode, stake,
-          settings_snapshot: { error: msg, ...(snapshot as object) },
-        });
-      }
+      await db().from("positions").update({
+        status: "failed", exit_reason: `BUY_ERROR: ${msg.slice(0, 100)}`,
+        closed_at: new Date().toISOString(),
+      }).eq("id", pending.id);
+      await auditEvent("LIVE_BUY_FAILED", {
+        position_id: pending.id, symbol: symCode, stake,
+        settings_snapshot: { error: msg, ...(snapshot as object) },
+      });
     }
   }
 
   private async maybeClose(pos: Position, state: ComputedState, avgSpikeTicks: number) {
-    // In live mode, only close via reconciliation (Deriv-managed contracts).
-    // Local price-based exit is paper-only.
-    if (this.settings?.is_live && pos.deriv_contract_id) {
-      return null;
-    }
+    if (this.settings?.is_live && pos.deriv_contract_id) return null;
     const dir = pos.side === "BUY" ? 1 : -1;
     const moved = (state.lastPrice - pos.entry_price) * dir;
     const r = moved / pos.unit;
@@ -354,9 +341,8 @@ export class Engine {
     const elapsedTicks = Math.max(0, state.lastEpoch - pos.opened_epoch);
     const preSpikeExit = pos.regime === "spike-anticipation"
       && (state.ticksSinceSpike / avgSpikeTicks) >= (this.settings?.pre_spike_ratio ?? 0.8)
-      && r >= MIN_PRE_SPIKE_R;
+      && r >= 1.0;
     const timeStop = elapsedTicks >= avgSpikeTicks * (this.settings?.max_hold_ratio ?? 1.2);
-
     if (!(tpHit || slHit || preSpikeExit || timeStop)) return null;
 
     const cappedMoved = Math.max(moved, -pos.sl_r * pos.unit);
@@ -369,21 +355,21 @@ export class Engine {
       closed_epoch: state.lastEpoch, closed_at: new Date().toISOString(),
       pnl, realized_r, exit_reason,
     }).eq("id", pos.id);
-    console.log(`[engine] CLOSE ${pos.symbol} ${exit_reason} r=${realized_r.toFixed(2)} pnl=${pnl.toFixed(2)}`);
+    console.log(`[engine] CLOSE ${pos.symbol} agent=${pos.agent_id?.slice(0,8)} ${exit_reason} r=${realized_r.toFixed(2)} pnl=${pnl.toFixed(2)}`);
     return { realized_r, pnl, exit_reason };
   }
 
   private async updateBucket(symbol: string, regime: string, direction: string, realizedR: number) {
-    const key = bucketKey(symbol, regime, direction);
-    const b = this.buckets.get(key) ?? {
-      bucket_key: key, symbol, regime, direction,
+    const k = bucketKey(symbol, regime, direction);
+    const b = this.buckets.get(k) ?? {
+      bucket_key: k, symbol, regime, direction,
       trades: 0, wins: 0, losses: 0, ewma_r: 0, disabled: false,
     };
     b.trades += 1;
     if (realizedR > 0) b.wins += 1; else if (realizedR < 0) b.losses += 1;
     b.ewma_r = b.ewma_r * (1 - EWMA_ALPHA) + realizedR * EWMA_ALPHA;
     b.disabled = isBucketDisabled(b.trades, b.ewma_r);
-    this.buckets.set(key, b);
+    this.buckets.set(k, b);
     await db().from("learning_buckets").upsert({ ...b, updated_at: new Date().toISOString() });
   }
 
