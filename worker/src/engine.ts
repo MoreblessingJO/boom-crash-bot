@@ -38,6 +38,7 @@ interface Position {
   entry_price: number; stake: number; tp_r: number; sl_r: number;
   unit: number; opened_epoch: number;
   agent_id?: string | null;
+  slot?: string | null;
   deriv_contract_id?: string | null;
   status?: string;
 }
