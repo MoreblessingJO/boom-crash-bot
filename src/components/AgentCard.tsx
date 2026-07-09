@@ -68,6 +68,9 @@ export function AgentCard({
         {agent.description}
       </p>
 
+      {!disabled && <AgentPaperStrip slug={agent.slug} />}
+
+
       <div className="mt-6">
         {disabled ? (
           <Button disabled variant="outline" className="w-full">
