@@ -111,3 +111,33 @@ function StatusBadge({ status }: { status: Agent["status"] }) {
     </span>
   );
 }
+
+function AgentPaperStrip({ slug }: { slug: string }) {
+  const listFn = useServerFn(listAgentPerformance);
+  const q = useQuery({
+    queryKey: ["agent-performance"],
+    queryFn: () => listFn(),
+    staleTime: 30_000,
+  });
+  const perf = q.data?.find((a) => a.slug === slug);
+  if (!perf || perf.trades === 0) return null;
+  const positive = Number(perf.net_pnl) >= 0;
+  return (
+    <Link
+      to="/agents/$slug"
+      params={{ slug }}
+      className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs hover:border-primary/40 hover:bg-muted/40"
+    >
+      <span className="font-mono tabular-nums">
+        ${Number(perf.current_balance).toFixed(2)}
+        <span className="ml-2 text-muted-foreground">{perf.trades} trades · {perf.win_rate}% win</span>
+      </span>
+      <span className={cn("inline-flex items-center gap-1 font-semibold tabular-nums",
+        positive ? "text-primary" : "text-destructive")}>
+        {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+        {positive ? "+" : ""}${Number(perf.net_pnl).toFixed(2)}
+      </span>
+    </Link>
+  );
+}
+
