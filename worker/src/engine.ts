@@ -83,7 +83,7 @@ export class Engine {
     this.openByKey.clear();
     for (const p of (data ?? []) as Position[]) {
       if (!p.agent_id) continue;
-      this.openByKey.set(key(p.symbol, p.agent_id), p);
+      this.openByKey.set(key(p.symbol, p.agent_id, p.slot ?? "main"), p);
     }
   }
 
