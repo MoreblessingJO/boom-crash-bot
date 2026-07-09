@@ -70,7 +70,9 @@ export class Engine {
   setAuthWs(ws: DerivAuthWS | null) { this.authWs = ws; }
 
   async hydrateBuffer(sym: SymbolDef, ticks: RawTick[]) {
-    const limit = Math.min(5000, Math.max(300, sym.avgSpikeTicks * 3));
+    // Multi-timeframe strategies (Nexx/007/Sniper) need up to 600-tick lookback,
+    // so keep at least 3000 ticks per symbol.
+    const limit = Math.min(5000, Math.max(3000, sym.avgSpikeTicks * 3));
     this.bufferLimits.set(sym.code, limit);
     this.buffers.set(sym.code, ticks.slice(-limit));
   }
