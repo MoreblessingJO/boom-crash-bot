@@ -1,10 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { listAgents, getMyAgent, selectAgent } from "@/lib/agents.functions";
+import { getMyRoles } from "@/lib/deriv-oauth.functions";
 import { AgentCard } from "@/components/AgentCard";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, ArrowLeft } from "lucide-react";
+import logo from "@/assets/nexxtrade-logo.png.asset.json";
 
 export const Route = createFileRoute("/_authenticated/agents")({
   head: () => ({
