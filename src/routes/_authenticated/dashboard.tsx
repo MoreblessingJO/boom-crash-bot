@@ -280,7 +280,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 
 function NotConnected() {
   const [busy, setBusy] = useState(false);
-  const [loginId, setLoginId] = useState("");
+  const [loginId, setLoginId] = useState("32312466");
 
   async function createPkceChallenge() {
     const bytes = new Uint8Array(32);
