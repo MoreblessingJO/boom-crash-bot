@@ -53,14 +53,14 @@ export function GuardrailSettings() {
           onChange={(e) => setForm({ ...form, max_open_positions: Number(e.target.value) })}
           className="input" />
       </Field>
-      <Field label="Max stake per trade (USD)" hint="Hard ceiling; larger stakes are clamped.">
-        <input type="number" step="0.1" value={form.max_stake_per_trade}
-          onChange={(e) => setForm({ ...form, max_stake_per_trade: Number(e.target.value) })}
-          className="input" />
-      </Field>
-      <Field label="Max stake as % of equity" hint="0.02 = 2%. Uses live Deriv balance. Set 0 to disable.">
+      <Field label="Max stake as % of equity" hint="Primary per-trade cap. 0.02 = 2% of live Deriv balance. This is the ONLY per-trade limit — no fixed dollar cap.">
         <input type="number" step="0.005" min="0" max="1" value={form.max_stake_pct_equity}
           onChange={(e) => setForm({ ...form, max_stake_pct_equity: Number(e.target.value) })}
+          className="input" />
+      </Field>
+      <Field label="Fallback max stake (USD)" hint="Used ONLY if live equity is unavailable (Deriv authorize failed). Otherwise ignored.">
+        <input type="number" step="0.1" value={form.max_stake_per_trade}
+          onChange={(e) => setForm({ ...form, max_stake_per_trade: Number(e.target.value) })}
           className="input" />
       </Field>
       <button onClick={handleSave} disabled={busy}
