@@ -66,17 +66,24 @@ export async function checkGuardrails(inp: GuardCheckInput): Promise<GuardOutcom
 
   let stake = proposedStake;
   let clamped: string | undefined;
-  const maxPer = Number(guards.max_stake_per_trade ?? 0);
-  if (maxPer > 0 && stake > maxPer) {
-    clamped = `per_trade ${stake.toFixed(2)}→${maxPer.toFixed(2)}`;
-    stake = maxPer;
-  }
-  const pct = Number(guards.max_stake_pct_equity ?? 0);
-  if (pct > 0 && equity && equity > 0) {
+
+  // Per-trade cap is ALWAYS a percentage of live equity — never a fixed dollar amount.
+  // `max_stake_pct_equity` is the source of truth (default 2%). If equity is
+  // unavailable (Deriv authorize failed), fall back to `max_stake_per_trade`
+  // interpreted the same way: as a pct if <=1, else as a hard-dollar backstop.
+  const pct = Number(guards.max_stake_pct_equity ?? 0.02) || 0.02;
+  if (equity && equity > 0) {
     const cap = equity * pct;
     if (stake > cap) {
-      clamped = (clamped ? clamped + "; " : "") + `pct_equity ${stake.toFixed(2)}→${cap.toFixed(2)}`;
+      clamped = `pct_equity ${stake.toFixed(2)}→${cap.toFixed(2)} (${(pct * 100).toFixed(2)}% of ${equity.toFixed(2)})`;
       stake = cap;
+    }
+  } else {
+    const raw = Number(guards.max_stake_per_trade ?? 0);
+    const fallback = raw > 0 && raw <= 1 ? /* pct */ 0 : raw; // pct without equity is meaningless
+    if (fallback > 0 && stake > fallback) {
+      clamped = `per_trade_fallback ${stake.toFixed(2)}→${fallback.toFixed(2)} (no equity)`;
+      stake = fallback;
     }
   }
   stake = Math.max(0.35, Number(stake.toFixed(2)));
