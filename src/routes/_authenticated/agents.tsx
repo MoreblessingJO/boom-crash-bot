@@ -95,5 +95,6 @@ function AgentsPage() {
         </div>
       )}
     </main>
+    </div>
   );
 }
