@@ -280,9 +280,35 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 
 function NotConnected() {
   const [busy, setBusy] = useState(false);
+  const [loginId, setLoginId] = useState("32312466");
+
+  async function createPkceChallenge() {
+    const bytes = new Uint8Array(32);
+    window.crypto.getRandomValues(bytes);
+    const verifier = base64Url(bytes);
+    const digest = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+    return { verifier, challenge: base64Url(new Uint8Array(digest)) };
+  }
+
+  function base64Url(bytes: Uint8Array) {
+    let raw = "";
+    bytes.forEach((b) => { raw += String.fromCharCode(b); });
+    return window.btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function encodeState(value: object) {
+    const raw = new TextEncoder().encode(JSON.stringify(value));
+    return base64Url(raw);
+  }
 
   async function connect() {
     setBusy(true);
+    const normalizedLoginId = loginId.trim().toUpperCase();
+    if (!normalizedLoginId) {
+      toast.error("Enter your Deriv Standard/CFD login ID first");
+      setBusy(false);
+      return;
+    }
     const { data: sess } = await supabase.auth.getSession();
     const accessToken = sess.session?.access_token;
     if (!accessToken) {
@@ -290,19 +316,29 @@ function NotConnected() {
       setBusy(false);
       return;
     }
-    const appId = import.meta.env.VITE_DERIV_APP_ID ?? "1089";
+    const { verifier, challenge } = await createPkceChallenge();
+    const clientId = import.meta.env.VITE_DERIV_APP_ID ?? "1089";
     const redirectUri = `${window.location.origin}/api/public/deriv/callback`;
-    const url = new URL("https://oauth.deriv.com/oauth2/authorize");
-    url.searchParams.set("app_id", appId);
-    url.searchParams.set("l", "EN");
+    const url = new URL("https://auth.deriv.com/oauth2/auth");
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("state", accessToken);
+    url.searchParams.set("scope", "trade account_manage");
+    url.searchParams.set("state", encodeState({ accessToken, verifier, loginId: normalizedLoginId }));
+    url.searchParams.set("code_challenge", challenge);
+    url.searchParams.set("code_challenge_method", "S256");
     window.location.href = url.toString();
   }
 
   return (
     <div className="rounded-md border border-dashed p-6 text-center">
       <p className="mb-4 text-sm text-muted-foreground">No Deriv account connected yet.</p>
+      <input
+        value={loginId}
+        onChange={(event) => setLoginId(event.target.value)}
+        placeholder="Standard/CFD login ID, e.g. 32312466"
+        className="mb-3 h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      />
       <Button onClick={connect} disabled={busy} className="glow-boom">
         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
         Connect Deriv account

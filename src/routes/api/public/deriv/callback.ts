@@ -19,6 +19,12 @@ interface DerivAcct {
   currency: string;
 }
 
+interface OAuthState {
+  accessToken: string;
+  verifier: string;
+  loginId: string;
+}
+
 function parseAccounts(url: URL): DerivAcct[] {
   const params = url.searchParams;
   const accts: DerivAcct[] = [];
@@ -36,16 +42,66 @@ function inferAccountType(loginid: string): "demo" | "real" {
   return loginid.toUpperCase().startsWith("VR") ? "demo" : "real";
 }
 
+function decodeOAuthState(state: string): OAuthState | null {
+  try {
+    const normalized = state.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const parsed = JSON.parse(globalThis.atob(padded)) as Partial<OAuthState>;
+    if (!parsed.accessToken || !parsed.verifier || !parsed.loginId) return null;
+    return {
+      accessToken: parsed.accessToken,
+      verifier: parsed.verifier,
+      loginId: parsed.loginId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function exchangeOAuthCode({
+  code,
+  verifier,
+  clientId,
+  redirectUri,
+}: {
+  code: string;
+  verifier: string;
+  clientId: string;
+  redirectUri: string;
+}) {
+  const body = new URLSearchParams();
+  body.set("grant_type", "authorization_code");
+  body.set("client_id", clientId);
+  body.set("code", code);
+  body.set("code_verifier", verifier);
+  body.set("redirect_uri", redirectUri);
+
+  const res = await fetch("https://auth.deriv.com/oauth2/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const json = await res.json().catch(() => ({})) as { access_token?: string; error?: string; error_description?: string };
+  if (!res.ok || !json.access_token) {
+    throw new Error(json.error_description || json.error || "token_exchange_failed");
+  }
+  return json.access_token;
+}
+
 export const Route = createFileRoute("/api/public/deriv/callback")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const state = url.searchParams.get("state") ?? "";
+        const code = url.searchParams.get("code") ?? "";
+        const oauthError = url.searchParams.get("error") ?? "";
 
         const origin = `${url.protocol}//${url.host}`;
         const errRedirect = (msg: string) =>
           redirect({ href: `${origin}/dashboard?deriv_error=${encodeURIComponent(msg)}` });
+
+        if (oauthError) throw errRedirect(oauthError);
 
         if (!state) throw errRedirect("missing_state");
 
@@ -53,14 +109,34 @@ export const Route = createFileRoute("/api/public/deriv/callback")({
         const supaKey = process.env.SUPABASE_PUBLISHABLE_KEY;
         if (!supaUrl || !supaKey) throw errRedirect("server_misconfigured");
 
+        const oauthState = decodeOAuthState(state);
+        const userAccessToken = oauthState?.accessToken ?? state;
+
         const authClient = createClient<Database>(supaUrl, supaKey, {
           auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
         });
-        const { data: userData, error: userErr } = await authClient.auth.getUser(state);
+        const { data: userData, error: userErr } = await authClient.auth.getUser(userAccessToken);
         if (userErr || !userData?.user) throw errRedirect("invalid_session");
         const userId = userData.user.id;
 
-        const accts = parseAccounts(url);
+        let accts = parseAccounts(url);
+        if (code) {
+          if (!oauthState) throw errRedirect("invalid_state");
+          const clientId = process.env.DERIV_APP_ID ?? process.env.VITE_DERIV_APP_ID;
+          if (!clientId) throw errRedirect("server_misconfigured");
+          try {
+            const token = await exchangeOAuthCode({
+              code,
+              verifier: oauthState.verifier,
+              clientId,
+              redirectUri: `${origin}/api/public/deriv/callback`,
+            });
+            accts = [{ token, loginid: oauthState.loginId, currency: "" }];
+          } catch (e) {
+            console.error("[deriv/callback] oauth exchange failed", e);
+            throw errRedirect("oauth_exchange_failed");
+          }
+        }
         if (accts.length === 0) throw errRedirect("no_tokens");
 
         const { encryptToken } = await import("@/lib/deriv-token.server");
