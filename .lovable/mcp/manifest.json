@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "sdk_version": "0.23.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://lizlrjoyvsgkxadxuthy.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "nexxtrade-mcp",
+      "version": "0.1.0",
+      "title": "NexxTrade"
+    },
+    "tools": [
+      {
+        "name": "list_agents",
+        "title": "List AI trading agents",
+        "description": "List the NexxTrade AI agents available in the marketplace with their status, market, risk level, and strategy key.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_agent",
+        "title": "Get my selected agent",
+        "description": "Return the AI trading agent the signed-in user has selected, or null if none is selected yet.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "select_agent",
+        "title": "Select an AI trading agent",
+        "description": "Set the signed-in user's active AI agent by slug (e.g. 'nicco', 'nexx', '007', 'sniper'). Fails if the agent is coming_soon.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Agent slug from list_agents."
+            }
+          },
+          "required": [
+            "slug"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_deriv_connection",
+        "title": "Get my Deriv connection",
+        "description": "Return metadata about the signed-in user's linked Deriv account (loginid, account type, active flag). Never returns the access token.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_profile",
+        "title": "Get my profile",
+        "description": "Return the signed-in user's basic identity (user id, email) as seen by NexxTrade.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
