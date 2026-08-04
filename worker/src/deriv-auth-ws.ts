@@ -3,7 +3,9 @@
 // price feed.
 import WebSocket from "ws";
 
-const APP_ID = process.env.DERIV_APP_ID ?? "1089";
+// Numeric app_id only — the alphanumeric OAuth client id is rejected by the WS API.
+const RAW_APP_ID = process.env.DERIV_WS_APP_ID ?? process.env.DERIV_APP_ID ?? "1089";
+const APP_ID = /^\d+$/.test(RAW_APP_ID) ? RAW_APP_ID : "1089";
 const URL_ = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
 export interface AuthorizeInfo {
