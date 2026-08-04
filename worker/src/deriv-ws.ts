@@ -2,7 +2,14 @@
 import WebSocket from "ws";
 import type { RawTick } from "./strategy.js";
 
-const APP_ID = process.env.DERIV_APP_ID ?? "1089";
+// The WebSocket API only accepts the NUMERIC app_id. The OAuth client id
+// (alphanumeric) is a different credential and must never be used here —
+// passing it makes Deriv reject the socket, which shows up as 0 symbols connected.
+const RAW_APP_ID = process.env.DERIV_WS_APP_ID ?? process.env.DERIV_APP_ID ?? "1089";
+const APP_ID = /^\d+$/.test(RAW_APP_ID) ? RAW_APP_ID : "1089";
+if (APP_ID !== RAW_APP_ID) {
+  console.warn(`[deriv] DERIV_APP_ID "${RAW_APP_ID}" is not numeric — falling back to app_id=1089 for the tick feed. Set DERIV_WS_APP_ID to your numeric Deriv app id.`);
+}
 const URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
 type TickHandler = (symbol: string, tick: RawTick) => void;
