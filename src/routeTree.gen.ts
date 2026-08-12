@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTradesRouteImport } from './routes/_authenticated/trades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAssetsRouteImport } from './routes/_authenticated/assets'
 import { Route as AuthenticatedAiRouteImport } from './routes/_authenticated/ai'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -57,6 +58,11 @@ const AuthenticatedTradesRoute = AuthenticatedTradesRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAssetsRoute = AuthenticatedAssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAiRoute = AuthenticatedAiRouteImport.update({
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/ai': typeof AuthenticatedAiRoute
+  '/assets': typeof AuthenticatedAssetsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/ai': typeof AuthenticatedAiRoute
+  '/assets': typeof AuthenticatedAssetsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/_authenticated/ai': typeof AuthenticatedAiRoute
+  '/_authenticated/assets': typeof AuthenticatedAssetsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/agents'
     | '/ai'
+    | '/assets'
     | '/dashboard'
     | '/trades'
     | '/.lovable/oauth/consent'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/agents'
     | '/ai'
+    | '/assets'
     | '/dashboard'
     | '/trades'
     | '/.lovable/oauth/consent'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/agents'
     | '/_authenticated/ai'
+    | '/_authenticated/assets'
     | '/_authenticated/dashboard'
     | '/_authenticated/trades'
     | '/.lovable/oauth/consent'
@@ -321,6 +333,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/assets': {
+      id: '/_authenticated/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AuthenticatedAssetsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ai': {
@@ -455,6 +474,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRouteWithChildren
   AuthenticatedAiRoute: typeof AuthenticatedAiRoute
+  AuthenticatedAssetsRoute: typeof AuthenticatedAssetsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedTradesRoute: typeof AuthenticatedTradesRoute
 }
@@ -463,6 +483,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRouteWithChildren,
   AuthenticatedAiRoute: AuthenticatedAiRoute,
+  AuthenticatedAssetsRoute: AuthenticatedAssetsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedTradesRoute: AuthenticatedTradesRoute,
 }
