@@ -13,6 +13,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTradesRouteImport } from './routes/_authenticated/trades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -46,6 +47,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedTradesRoute = AuthenticatedTradesRouteImport.update({
+  id: '/trades',
+  path: '/trades',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/brain': typeof AuthenticatedAdminBrainRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/brain': typeof AuthenticatedAdminBrainRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/admin/brain': typeof AuthenticatedAdminBrainRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/agents'
     | '/dashboard'
+    | '/trades'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/brain'
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/agents'
     | '/dashboard'
+    | '/trades'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/brain'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/agents'
     | '/_authenticated/dashboard'
+    | '/_authenticated/trades'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/admin/brain'
@@ -284,6 +296,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/trades': {
+      id: '/_authenticated/trades'
+      path: '/trades'
+      fullPath: '/trades'
+      preLoaderRoute: typeof AuthenticatedTradesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
@@ -417,12 +436,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedTradesRoute: typeof AuthenticatedTradesRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedTradesRoute: AuthenticatedTradesRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
