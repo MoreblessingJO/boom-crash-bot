@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTradesRouteImport } from './routes/_authenticated/trades'
+import { Route as AuthenticatedRiskRouteImport } from './routes/_authenticated/risk'
 import { Route as AuthenticatedResourcesRouteImport } from './routes/_authenticated/resources'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -55,6 +56,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedTradesRoute = AuthenticatedTradesRouteImport.update({
   id: '/trades',
   path: '/trades',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRiskRoute = AuthenticatedRiskRouteImport.update({
+  id: '/risk',
+  path: '/risk',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedResourcesRoute = AuthenticatedResourcesRouteImport.update({
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/resources': typeof AuthenticatedResourcesRoute
+  '/risk': typeof AuthenticatedRiskRoute
   '/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/resources': typeof AuthenticatedResourcesRoute
+  '/risk': typeof AuthenticatedRiskRoute
   '/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/resources': typeof AuthenticatedResourcesRoute
+  '/_authenticated/risk': typeof AuthenticatedRiskRoute
   '/_authenticated/trades': typeof AuthenticatedTradesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -240,6 +249,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/profile'
     | '/resources'
+    | '/risk'
     | '/trades'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/profile'
     | '/resources'
+    | '/risk'
     | '/trades'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
     | '/_authenticated/resources'
+    | '/_authenticated/risk'
     | '/_authenticated/trades'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -350,6 +362,13 @@ declare module '@tanstack/react-router' {
       path: '/trades'
       fullPath: '/trades'
       preLoaderRoute: typeof AuthenticatedTradesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/risk': {
+      id: '/_authenticated/risk'
+      path: '/risk'
+      fullPath: '/risk'
+      preLoaderRoute: typeof AuthenticatedRiskRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/resources': {
@@ -516,6 +535,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedResourcesRoute: typeof AuthenticatedResourcesRoute
+  AuthenticatedRiskRoute: typeof AuthenticatedRiskRoute
   AuthenticatedTradesRoute: typeof AuthenticatedTradesRoute
 }
 
@@ -527,6 +547,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedResourcesRoute: AuthenticatedResourcesRoute,
+  AuthenticatedRiskRoute: AuthenticatedRiskRoute,
   AuthenticatedTradesRoute: AuthenticatedTradesRoute,
 }
 
