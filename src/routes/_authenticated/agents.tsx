@@ -1,24 +1,26 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { listAgents, getMyAgent, selectAgent } from "@/lib/agents.functions";
-import { getMyRoles } from "@/lib/deriv-oauth.functions";
 import { AgentCard } from "@/components/AgentCard";
-import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft } from "lucide-react";
-import logo from "@/assets/nexxtrade-logo.png.asset.json";
+import { AppShell } from "@/components/app/AppShell";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/agents")({
   head: () => ({
     meta: [
-      { title: "AI Agents · NexxTrade" },
-      { name: "description", content: "Choose which NexxTrade AI agent trades your Deriv account." },
+      { title: "AI Agents — NexxTrade" },
+      { name: "description", content: "Choose which NexxTrade AI agent trades your Deriv account — Nicco, Nexx, 007 or Sniper." },
+      { property: "og:title", content: "AI Agents — NexxTrade" },
+      { property: "og:description", content: "Choose which AI agent trades your account. Swap strategies any time." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: AgentsPage,
 });
+
 
 function AgentsPage() {
   const qc = useQueryClient();
