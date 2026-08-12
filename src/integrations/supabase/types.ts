@@ -644,6 +644,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_risk_profiles: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          experience: string
+          monthly_target: number
+          risk_appetite: number
+          trading_goal: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          experience?: string
+          monthly_target?: number
+          risk_appetite?: number
+          trading_goal?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          experience?: string
+          monthly_target?: number
+          risk_appetite?: number
+          trading_goal?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
