@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 12px);
+  --radius-md: calc(var(--radius) - 8px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
@@ -28,71 +28,115 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-navy: var(--navy);
   --color-boom: var(--boom);
   --color-crash: var(--crash);
   --color-neon: var(--neon);
+  --color-electric: var(--electric);
   --color-warn: var(--warn);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
-  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", "Roboto", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
 }
 
 :root {
-  /* NexxTrade — near-black dark theme with neon lime-green accent. */
-  --radius: 0.75rem;
-  --background: oklch(0.14 0.005 240);
-  --foreground: oklch(0.97 0.005 145);
-  --surface: oklch(0.18 0.007 240);
-  --surface-elevated: oklch(0.22 0.008 240);
-  --card: oklch(0.17 0.007 240);
-  --card-foreground: oklch(0.97 0.005 145);
-  --popover: oklch(0.19 0.007 240);
-  --popover-foreground: oklch(0.97 0.005 145);
-  --primary: oklch(0.85 0.20 155);          /* neon lime-green */
-  --primary-foreground: oklch(0.15 0.02 155);
-  --secondary: oklch(0.24 0.008 240);
-  --secondary-foreground: oklch(0.97 0.005 145);
-  --muted: oklch(0.22 0.006 240);
-  --muted-foreground: oklch(0.66 0.012 240);
-  --accent: oklch(0.28 0.03 155);
-  --accent-foreground: oklch(0.97 0.005 145);
-  --destructive: oklch(0.65 0.24 25);
-  --destructive-foreground: oklch(0.98 0.01 240);
-  --border: oklch(0.26 0.008 240);
-  --input: oklch(0.22 0.008 240);
-  --ring: oklch(0.85 0.20 155);
-  --boom: oklch(0.85 0.20 155);             /* lime/green — same as primary */
-  --crash: oklch(0.68 0.24 25);             /* red */
-  --neon: oklch(0.88 0.22 145);             /* neon glow */
-  --warn: oklch(0.84 0.18 85);              /* amber */
+  /* NexxTrade — Premium Minimalism. White canvas, deep navy ink, #40E89B accent. */
+  --radius: 1.25rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.088 273);        /* deep navy #0B0F3A */
+  --navy: oklch(0.21 0.088 273);
+  --surface: oklch(0.98 0.004 260);
+  --surface-elevated: oklch(1 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.088 273);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.088 273);
+  --primary: oklch(0.83 0.163 160);           /* #40E89B */
+  --primary-foreground: oklch(0.21 0.088 273);
+  --secondary: oklch(0.968 0.005 260);
+  --secondary-foreground: oklch(0.21 0.088 273);
+  --muted: oklch(0.968 0.005 260);
+  --muted-foreground: oklch(0.55 0.02 265);
+  --accent: oklch(0.955 0.03 165);
+  --accent-foreground: oklch(0.21 0.088 273);
+  --destructive: oklch(0.60 0.22 22);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.925 0.006 265);
+  --input: oklch(0.925 0.006 265);
+  --ring: oklch(0.83 0.163 160);
+  --boom: oklch(0.72 0.18 155);
+  --crash: oklch(0.60 0.22 22);
+  --neon: oklch(0.83 0.163 160);
+  --electric: oklch(0.68 0.175 245);          /* #00A3FF */
+  --warn: oklch(0.78 0.15 78);
+
+  --shadow-soft: 0 1px 2px oklch(0.21 0.088 273 / 0.04), 0 8px 24px -12px oklch(0.21 0.088 273 / 0.12);
+  --shadow-lift: 0 2px 4px oklch(0.21 0.088 273 / 0.05), 0 18px 40px -18px oklch(0.21 0.088 273 / 0.22);
 }
 
-.dark { color-scheme: dark; }
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.16 0.035 273);
+  --foreground: oklch(0.97 0.005 260);
+  --navy: oklch(0.16 0.035 273);
+  --surface: oklch(0.20 0.038 273);
+  --surface-elevated: oklch(0.24 0.04 273);
+  --card: oklch(0.20 0.038 273);
+  --card-foreground: oklch(0.97 0.005 260);
+  --popover: oklch(0.22 0.038 273);
+  --popover-foreground: oklch(0.97 0.005 260);
+  --primary: oklch(0.83 0.163 160);
+  --primary-foreground: oklch(0.16 0.035 273);
+  --secondary: oklch(0.26 0.038 273);
+  --secondary-foreground: oklch(0.97 0.005 260);
+  --muted: oklch(0.26 0.038 273);
+  --muted-foreground: oklch(0.70 0.02 265);
+  --accent: oklch(0.30 0.05 200);
+  --accent-foreground: oklch(0.97 0.005 260);
+  --border: oklch(0.30 0.035 273);
+  --input: oklch(0.28 0.035 273);
+  --ring: oklch(0.83 0.163 160);
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -12px oklch(0 0 0 / 0.5);
+  --shadow-lift: 0 2px 4px oklch(0 0 0 / 0.35), 0 18px 40px -18px oklch(0 0 0 / 0.6);
+}
 
 @layer base {
   * { border-color: var(--color-border); }
-  html, body { background: var(--color-background); color: var(--color-foreground); }
-  body {
-    font-family: var(--font-sans);
-    background-image:
-      radial-gradient(circle at 20% -10%, oklch(0.85 0.20 155 / 0.10), transparent 45%),
-      radial-gradient(circle at 100% 100%, oklch(0.85 0.20 155 / 0.06), transparent 55%);
-    background-attachment: fixed;
-    font-feature-settings: "ss01", "cv02";
+  html, body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
   }
-  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
+  body { font-family: var(--font-sans); }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
 }
 
-@utility glow-cyan { box-shadow: 0 0 24px -4px oklch(0.85 0.20 155 / 0.55); }
-@utility glow-boom { box-shadow: 0 0 20px -4px oklch(0.85 0.20 155 / 0.55); }
-@utility glow-crash { box-shadow: 0 0 20px -4px oklch(0.68 0.24 25 / 0.6); }
+@utility card-soft { box-shadow: var(--shadow-soft); }
+@utility card-lift { box-shadow: var(--shadow-lift); }
+@utility glow-boom { box-shadow: 0 0 32px -8px oklch(0.83 0.163 160 / 0.55); }
+@utility glow-crash { box-shadow: 0 0 28px -8px oklch(0.60 0.22 22 / 0.5); }
 @utility text-tabular { font-variant-numeric: tabular-nums; }
+@utility glass {
+  background: color-mix(in oklab, var(--color-background) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+}
 @utility grid-bg {
   background-image:
-    linear-gradient(oklch(0.30 0.01 240 / 0.35) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.30 0.01 240 / 0.35) 1px, transparent 1px);
+    linear-gradient(oklch(0.21 0.088 273 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.21 0.088 273 / 0.05) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, black 35%, transparent 75%);
+}
+@utility orb {
+  background:
+    radial-gradient(circle at 32% 28%, oklch(0.95 0.10 160 / 0.95), transparent 55%),
+    radial-gradient(circle at 70% 75%, oklch(0.68 0.175 245 / 0.65), transparent 60%),
+    radial-gradient(circle at 50% 50%, oklch(0.83 0.163 160 / 0.9), oklch(0.21 0.088 273 / 0.85) 75%);
+  box-shadow: 0 0 60px -10px oklch(0.83 0.163 160 / 0.6);
 }
