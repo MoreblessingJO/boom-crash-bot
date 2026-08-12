@@ -1,20 +1,23 @@
-// User dashboard: Deploy an AI agent + connect a Deriv account.
+// Home screen: greeting, portfolio hero, AI agent, quick actions.
 import { createFileRoute, useSearch, Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyDerivAccount, disconnectDerivAccount, getMyRoles } from "@/lib/deriv-oauth.functions";
+import { getMyRoles } from "@/lib/deriv-oauth.functions";
 import { getMyAgent } from "@/lib/agents.functions";
+import { getMyRiskProfile } from "@/lib/risk.functions";
+import { listAgentPerformance, getAgentEquityCurve } from "@/lib/agent-performance.functions";
+import { AppShell, Panel, SectionTitle, Stat, Sparkline } from "@/components/app/AppShell";
+import { useDerivAccount } from "@/components/app/DerivConnect";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Link2, Unlink, ShieldCheck, ExternalLink, Bot, ArrowRight, Lock } from "lucide-react";
+import {
+  Loader2, Bot, ArrowRight, TrendingUp, TrendingDown, Sparkles, Link2,
+  SlidersHorizontal, ShieldCheck, ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import logo from "@/assets/nexxtrade-logo.png.asset.json";
-import { AgentPerformanceTabs } from "@/components/AgentPerformanceTabs";
-
+import { cn } from "@/lib/utils";
 
 const searchSchema = z.object({
   connected: z.string().optional(),
@@ -25,33 +28,60 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Your Account · NexxTrade" },
-      { name: "description", content: "Deploy a NexxTrade AI agent and connect your Deriv account." },
+      { title: "Home — NexxTrade AI Trading" },
+      { name: "description", content: "Your NexxTrade home: portfolio value, active AI agent, live performance and quick actions." },
+      { property: "og:title", content: "Home — NexxTrade AI Trading" },
+      { property: "og:description", content: "Portfolio value, active AI agent and live performance at a glance." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: DashboardPage,
 });
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function DashboardPage() {
   const search = useSearch({ from: "/_authenticated/dashboard" });
-  const qc = useQueryClient();
-  const getAcct = useServerFn(getMyDerivAccount);
-  const getRoles = useServerFn(getMyRoles);
-  const getAgent = useServerFn(getMyAgent);
-  const disconnect = useServerFn(disconnectDerivAccount);
+  const [name, setName] = useState("Trader");
 
-  const acctQ = useQuery({ queryKey: ["deriv-account"], queryFn: () => getAcct() });
-  const rolesQ = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
-  const agentQ = useQuery({ queryKey: ["my-agent"], queryFn: () => getAgent() });
+  const rolesQ = useQuery({ queryKey: ["my-roles"], queryFn: useServerFn(getMyRoles) });
+  const agentFn = useServerFn(getMyAgent);
+  const agentQ = useQuery({ queryKey: ["my-agent"], queryFn: () => agentFn() });
+  const riskFn = useServerFn(getMyRiskProfile);
+  const riskQ = useQuery({ queryKey: ["risk-profile"], queryFn: () => riskFn() });
+  const perfFn = useServerFn(listAgentPerformance);
+  const perfQ = useQuery({ queryKey: ["agent-performance"], queryFn: () => perfFn(), staleTime: 20_000 });
+  const curveFn = useServerFn(getAgentEquityCurve);
+  const acctQ = useDerivAccount();
 
-  const disconnectM = useMutation({
-    mutationFn: (id: string) => disconnect({ data: { id } }),
-    onSuccess: () => {
-      toast.success("Deriv account disconnected");
-      qc.invalidateQueries({ queryKey: ["deriv-account"] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  const agents = perfQ.data ?? [];
+  const total = agents.reduce((s, a) => s + Number(a.current_balance ?? 0), 0);
+  const start = agents.reduce((s, a) => s + Number(a.starting_balance ?? 0), 0);
+  const net = total - start;
+  const pct = start ? (net / start) * 100 : 0;
+  const trades = agents.reduce((s, a) => s + Number(a.trades ?? 0), 0);
+  const wins = agents.reduce((s, a) => s + Number(a.wins ?? 0), 0);
+  const lead = agents[0];
+
+  const curveQ = useQuery({
+    queryKey: ["equity-curve", lead?.agent_id],
+    queryFn: () => curveFn({ data: { agentId: lead!.agent_id, days: 30 } }),
+    enabled: !!lead,
   });
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const meta = data.user?.user_metadata as { full_name?: string; name?: string } | undefined;
+      const n = meta?.full_name ?? meta?.name ?? data.user?.email?.split("@")[0];
+      if (n) setName(n.split(" ")[0]);
+    });
+  }, []);
 
   useEffect(() => {
     if (search.connected) toast.success(`Connected ${search.connected} Deriv account(s)`);
@@ -59,293 +89,162 @@ function DashboardPage() {
   }, [search.connected, search.deriv_error]);
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border/60 bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link to="/" className="flex items-center gap-2.5">
-            <img src={logo.url} alt="NexxTrade" className="h-7 w-7" />
-            <span className="font-display text-lg font-black tracking-tight">NexxTrade</span>
-          </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link to="/agents" className="text-muted-foreground hover:text-foreground">Agents</Link>
-            {rolesQ.data?.isAdmin && (
-              <a href="/admin" className="text-muted-foreground hover:text-foreground">Admin</a>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => supabase.auth.signOut()}>Sign out</Button>
-          </nav>
+    <AppShell title={`${greeting()}, ${name}`} subtitle="Here's how your AI is performing today">
+      <Panel className="relative overflow-hidden bg-navy text-background">
+        <div className="text-xs font-medium uppercase tracking-wide opacity-70">Portfolio value</div>
+        <div className="mt-1 text-[40px] font-bold leading-none tracking-tight text-tabular">
+          ${total.toFixed(2)}
         </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-10">
-        <div>
-          <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">Your account</h1>
-          <p className="mt-2 text-muted-foreground">
-            Pick an agent and connect your Deriv account. The agent trades on your behalf,
-            24/7, with server-enforced risk limits.
-          </p>
+        <div
+          className={cn(
+            "mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
+            net >= 0 ? "bg-primary/20 text-primary" : "bg-destructive/25 text-destructive",
+          )}
+        >
+          {net >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+          {net >= 0 ? "+" : ""}${net.toFixed(2)} ({pct.toFixed(1)}%)
         </div>
-
-        <AgentCardBlock agent={agentQ.data ?? null} isLoading={agentQ.isLoading} />
-
-        <AgentPerformanceTabs />
-
-
-
-        <MarketsTabs>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Deriv connection</CardTitle>
-              <CardDescription>
-                NexxTrade needs an authorized token from your Deriv account to place trades.
-                Tokens are encrypted at rest — never stored in plain text.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {acctQ.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-              ) : acctQ.data ? (
-                <ConnectedAccount
-                  acct={acctQ.data}
-                  onDisconnect={() => disconnectM.mutate(acctQ.data!.id)}
-                  disconnecting={disconnectM.isPending}
-                />
-              ) : (
-                <NotConnected />
-              )}
-            </CardContent>
-          </Card>
-        </MarketsTabs>
-
-        {rolesQ.data?.isAdmin && (
-          <Card className="border-primary/40 bg-primary/5">
-            <CardContent className="flex items-center gap-3 py-4">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              <div className="flex-1">
-                <div className="font-medium">Admin access</div>
-                <div className="text-xs text-muted-foreground">You have access to the engine control panel.</div>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <a href="/admin">Open Admin</a>
-              </Button>
-            </CardContent>
-          </Card>
+        {(curveQ.data?.length ?? 0) > 1 && (
+          <Sparkline points={curveQ.data!.map((p) => p.equity)} tone={net >= 0 ? "up" : "down"} className="mt-4 h-20" />
         )}
-      </main>
-    </div>
-  );
-}
-
-function AgentCardBlock({
-  agent,
-  isLoading,
-}: {
-  agent: Awaited<ReturnType<typeof getMyAgent>>;
-  isLoading: boolean;
-}) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading your agent…
-        </CardContent>
-      </Card>
-    );
-  }
-  if (!agent) {
-    return (
-      <Card className="border-primary/40 bg-primary/5">
-        <CardContent className="flex flex-col items-start gap-3 py-6 sm:flex-row sm:items-center">
-          <Bot className="h-6 w-6 shrink-0 text-primary" />
-          <div className="min-w-0 flex-1">
-            <div className="font-display text-lg font-bold">Pick your agent</div>
-            <div className="text-sm text-muted-foreground">Choose which AI strategy trades your account.</div>
-          </div>
-          <Button asChild className="glow-boom">
-            <Link to="/agents">Browse agents <ArrowRight className="ml-1 h-4 w-4" /></Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-  return (
-    <Card className="border-primary/40">
-      <CardContent className="flex flex-col items-start gap-4 py-6 sm:flex-row sm:items-center">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 glow-boom">
-          <Bot className="h-6 w-6 text-primary" />
+        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-background/15 pt-4">
+          <Stat label="Agents" value={agents.length} />
+          <Stat label="Trades" value={trades} />
+          <Stat label="Win rate" value={`${trades ? Math.round((wins / trades) * 100) : 0}%`} />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="font-display truncate text-xl font-black">{agent.agent.name}</div>
-            <Badge variant="outline" className="border-primary/40 text-primary">Deployed</Badge>
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">{agent.agent.tagline}</div>
-        </div>
-        <Button asChild variant="outline">
-          <Link to="/agents">Change agent</Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
+      </Panel>
 
-function MarketsTabs({ children }: { children: React.ReactNode }) {
-  const [tab, setTab] = useState<"boom" | "crypto" | "forex">("boom");
-  return (
-    <div>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <TabBtn active={tab === "boom"} onClick={() => setTab("boom")} label="Boom & Crash" live />
-        <TabBtn active={tab === "crypto"} onClick={() => setTab("crypto")} label="Crypto" />
-        <TabBtn active={tab === "forex"} onClick={() => setTab("forex")} label="Forex" />
-      </div>
-      {tab === "boom" ? children : <ComingSoonPanel market={tab === "crypto" ? "Crypto" : "Forex"} />}
-    </div>
-  );
-}
-
-function TabBtn({ active, onClick, label, live }: { active: boolean; onClick: () => void; label: string; live?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={
-        "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition " +
-        (active
-          ? "border-primary bg-primary/10 text-primary"
-          : "border-border bg-card text-muted-foreground hover:text-foreground")
-      }
-    >
-      {label}
-      {live ? (
-        <span className="inline-flex items-center rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">Live</span>
-      ) : (
-        <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground"><Lock className="h-2.5 w-2.5" />Soon</span>
+      {!riskQ.isLoading && !riskQ.data && (
+        <Link to="/risk" className="block">
+          <Panel className="flex items-center gap-3 border-primary bg-primary/8">
+            <SlidersHorizontal className="h-5 w-5 shrink-0 text-primary" />
+            <div className="flex-1">
+              <div className="text-sm font-bold">Complete your risk assessment</div>
+              <div className="text-xs text-muted-foreground">Maxx AI needs it to size your trades.</div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Panel>
+        </Link>
       )}
-    </button>
+
+      <SectionTitle>Your AI agent</SectionTitle>
+      {agentQ.isLoading ? (
+        <Panel className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading your agent…
+        </Panel>
+      ) : agentQ.data ? (
+        <Panel className="flex items-center gap-4">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary">
+            <Bot className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-lg font-bold">{agentQ.data.agent.name}</span>
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">
+                Deployed
+              </span>
+            </div>
+            <div className="mt-0.5 truncate text-sm text-muted-foreground">{agentQ.data.agent.tagline}</div>
+          </div>
+          <Button asChild variant="outline" size="sm" className="rounded-full">
+            <Link to="/agents">Change</Link>
+          </Button>
+        </Panel>
+      ) : (
+        <Panel className="border-primary bg-primary/8">
+          <div className="flex items-center gap-3">
+            <Bot className="h-6 w-6 shrink-0 text-primary" />
+            <div className="flex-1">
+              <div className="text-base font-bold">Pick your agent</div>
+              <div className="text-sm text-muted-foreground">Choose which AI strategy trades your account.</div>
+            </div>
+          </div>
+          <Button asChild className="mt-4 h-12 w-full rounded-2xl font-semibold glow-boom">
+            <Link to="/agents">
+              Browse agents <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </Panel>
+      )}
+
+      {!acctQ.isLoading && !acctQ.data && (
+        <Link to="/assets" className="block">
+          <Panel className="flex items-center gap-3">
+            <Link2 className="h-5 w-5 shrink-0 text-electric" />
+            <div className="flex-1">
+              <div className="text-sm font-bold">Connect your exchange</div>
+              <div className="text-xs text-muted-foreground">Link Deriv to let your agent execute.</div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Panel>
+        </Link>
+      )}
+
+      <SectionTitle>Agent leaderboard</SectionTitle>
+      <Panel className="divide-y divide-border p-0">
+        {agents.length === 0 && (
+          <div className="px-5 py-8 text-center text-sm text-muted-foreground">No agent data yet.</div>
+        )}
+        {agents.map((a, i) => {
+          const up = Number(a.net_pnl) >= 0;
+          return (
+            <Link
+              key={a.agent_id}
+              to="/agents/$slug"
+              params={{ slug: a.slug }}
+              className="flex items-center gap-3 px-5 py-4 transition hover:bg-muted/50"
+            >
+              <span className="w-4 shrink-0 text-sm font-bold text-muted-foreground">{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold">{a.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {a.trades} trades · {a.win_rate}% win
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-sm font-bold text-tabular">${Number(a.current_balance).toFixed(2)}</div>
+                <div className={cn("text-xs font-semibold text-tabular", up ? "text-primary" : "text-destructive")}>
+                  {up ? "+" : ""}${Number(a.net_pnl).toFixed(2)}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </Panel>
+
+      <SectionTitle>Quick actions</SectionTitle>
+      <div className="grid grid-cols-2 gap-3">
+        <QuickAction to="/ai" icon={Sparkles} label="Ask Maxx AI" hint="Your co-pilot" />
+        <QuickAction to="/trades" icon={TrendingUp} label="Trade history" hint="Every fill" />
+        <QuickAction to="/risk" icon={SlidersHorizontal} label="Risk settings" hint="Tune sizing" />
+        {rolesQ.data?.isAdmin ? (
+          <QuickAction to="/admin" icon={ShieldCheck} label="Admin" hint="Engine control" />
+        ) : (
+          <QuickAction to="/resources" icon={Bot} label="Learn" hint="Guides & FAQ" />
+        )}
+      </div>
+    </AppShell>
   );
 }
 
-function ComingSoonPanel({ market }: { market: string }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <Lock className="h-8 w-8 text-muted-foreground" />
-        <div className="font-display text-2xl font-black">{market} · Coming soon</div>
-        <p className="max-w-md text-sm text-muted-foreground">
-          We're building the {market.toLowerCase()} adapter. You'll get an email at your
-          account address when {market} agents go live — no extra signup needed.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ConnectedAccount({
-  acct, onDisconnect, disconnecting,
+function QuickAction({
+  to,
+  icon: Icon,
+  label,
+  hint,
 }: {
-  acct: { id: string; deriv_loginid: string; account_type: string; currency: string | null; scopes: string[]; connected_at: string };
-  onDisconnect: () => void;
-  disconnecting: boolean;
+  to: "/ai" | "/trades" | "/risk" | "/admin" | "/resources";
+  icon: typeof Bot;
+  label: string;
+  hint: string;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Login ID" value={acct.deriv_loginid} />
-        <Field label="Account" value={<Badge variant={acct.account_type === "real" ? "destructive" : "secondary"}>{acct.account_type.toUpperCase()}</Badge>} />
-        <Field label="Currency" value={acct.currency ?? "—"} />
-        <Field label="Connected" value={new Date(acct.connected_at).toLocaleString()} />
-      </div>
-      <div>
-        <div className="mb-1 text-xs text-muted-foreground">Granted scopes</div>
-        <div className="flex flex-wrap gap-1">
-          {acct.scopes.length === 0
-            ? <Badge variant="outline">read-only</Badge>
-            : acct.scopes.map((s) => <Badge key={s} variant="outline">{s}</Badge>)}
-        </div>
-      </div>
-      <Button variant="destructive" size="sm" onClick={onDisconnect} disabled={disconnecting}>
-        {disconnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Unlink className="mr-2 h-4 w-4" />}
-        Disconnect
-      </Button>
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium">{value}</div>
-    </div>
-  );
-}
-
-function NotConnected() {
-  const [busy, setBusy] = useState(false);
-  const [loginId, setLoginId] = useState("32312466");
-
-  async function createPkceChallenge() {
-    const bytes = new Uint8Array(32);
-    window.crypto.getRandomValues(bytes);
-    const verifier = base64Url(bytes);
-    const digest = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-    return { verifier, challenge: base64Url(new Uint8Array(digest)) };
-  }
-
-  function base64Url(bytes: Uint8Array) {
-    let raw = "";
-    bytes.forEach((b) => { raw += String.fromCharCode(b); });
-    return window.btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  }
-
-  function encodeState(value: object) {
-    const raw = new TextEncoder().encode(JSON.stringify(value));
-    return base64Url(raw);
-  }
-
-  async function connect() {
-    setBusy(true);
-    const normalizedLoginId = loginId.trim().toUpperCase();
-    if (!normalizedLoginId) {
-      toast.error("Enter your Deriv Standard/CFD login ID first");
-      setBusy(false);
-      return;
-    }
-    const { data: sess } = await supabase.auth.getSession();
-    const accessToken = sess.session?.access_token;
-    if (!accessToken) {
-      toast.error("Please sign in again");
-      setBusy(false);
-      return;
-    }
-    const { verifier, challenge } = await createPkceChallenge();
-    const clientId = import.meta.env.VITE_DERIV_APP_ID ?? "1089";
-    const redirectUri = `${window.location.origin}/api/public/deriv/callback`;
-    const url = new URL("https://auth.deriv.com/oauth2/auth");
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", clientId);
-    url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("scope", "trade account_manage");
-    url.searchParams.set("state", encodeState({ accessToken, verifier, loginId: normalizedLoginId }));
-    url.searchParams.set("code_challenge", challenge);
-    url.searchParams.set("code_challenge_method", "S256");
-    window.location.href = url.toString();
-  }
-
-  return (
-    <div className="rounded-md border border-dashed p-6 text-center">
-      <p className="mb-4 text-sm text-muted-foreground">No Deriv account connected yet.</p>
-      <input
-        value={loginId}
-        onChange={(event) => setLoginId(event.target.value)}
-        placeholder="Standard/CFD login ID, e.g. 32312466"
-        className="mb-3 h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      />
-      <Button onClick={connect} disabled={busy} className="glow-boom">
-        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
-        Connect Deriv account
-      </Button>
-      <p className="mt-3 text-xs text-muted-foreground">
-        You'll authorize on Deriv.com and be returned here.
-      </p>
-    </div>
+    <Link to={to}>
+      <Panel className="h-full p-4 transition hover:border-primary">
+        <Icon className="h-5 w-5 text-primary" />
+        <div className="mt-3 text-sm font-bold">{label}</div>
+        <div className="text-xs text-muted-foreground">{hint}</div>
+      </Panel>
+    </Link>
   );
 }
